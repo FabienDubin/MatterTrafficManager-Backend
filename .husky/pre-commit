@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Exécution des pre-commit hooks pour le backend..."
+
+# Exécuter lint-staged
+npm run lint-staged
+
+echo "✅ Pre-commit hooks terminés avec succès !"
