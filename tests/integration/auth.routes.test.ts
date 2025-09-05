@@ -1,6 +1,5 @@
 import request from 'supertest';
 import express from 'express';
-import authRouter from '../../src/routes/auth.route';
 import { authService } from '../../src/services/auth.service';
 import { UserModel, UserRole } from '../../src/models/User.model';
 import { RefreshTokenModel } from '../../src/models/RefreshToken.model';
@@ -9,7 +8,33 @@ import { RefreshTokenModel } from '../../src/models/RefreshToken.model';
 jest.mock('../../src/services/auth.service');
 jest.mock('../../src/models/User.model');
 jest.mock('../../src/models/RefreshToken.model');
-jest.mock('../../src/middleware/auth.middleware');
+jest.mock('../../src/middleware/auth.middleware', () => ({
+  authenticate: jest.fn((req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'No token provided',
+      });
+    }
+    req.user = {
+      userId: 'user123',
+      email: 'test@example.com',
+      role: 'ADMIN'
+    };
+    next();
+  }),
+  requireAdmin: jest.fn((req, res, next) => {
+    if (!req.user || req.user.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required',
+      });
+    }
+    next();
+  }),
+  authorize: jest.fn(() => jest.fn((req, res, next) => next()))
+}));
 jest.mock('../../src/config/logger.config', () => ({
   __esModule: true,
   default: {
@@ -19,6 +44,9 @@ jest.mock('../../src/config/logger.config', () => ({
     debug: jest.fn()
   }
 }));
+
+// Import the router after setting up mocks
+import authRouter from '../../src/routes/auth.route';
 
 describe('Auth Routes Integration Tests', () => {
   let app: express.Application;
