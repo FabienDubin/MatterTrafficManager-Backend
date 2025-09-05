@@ -53,8 +53,9 @@ export async function batchNotionCalls<T>(
 }
 
 export function getRateLimiterStats() {
+  const counts = limiter.counts();
   return {
-    remainingTokens: limiter.counts().RECEIVED,
+    remainingTokens: counts?.RECEIVED ?? 0,
     tokensPerInterval: 3,
     interval: 'second'
   };

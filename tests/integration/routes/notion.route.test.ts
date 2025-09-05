@@ -9,6 +9,7 @@ import { NotionAPIError } from '../../../src/errors/NotionAPIError';
 jest.mock('../../../src/services/notion.service');
 jest.mock('../../../src/services/auth.service');
 jest.mock('../../../src/config/logger.config', () => ({
+  __esModule: true,
   default: {
     info: jest.fn(),
     error: jest.fn(),
