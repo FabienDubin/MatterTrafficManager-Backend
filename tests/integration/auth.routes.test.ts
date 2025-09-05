@@ -9,6 +9,7 @@ import { RefreshTokenModel } from '../../src/models/RefreshToken.model';
 jest.mock('../../src/services/auth.service');
 jest.mock('../../src/models/User.model');
 jest.mock('../../src/models/RefreshToken.model');
+jest.mock('../../src/middleware/auth.middleware');
 jest.mock('../../src/config/logger.config', () => ({
   __esModule: true,
   default: {
@@ -110,9 +111,14 @@ describe('Auth Routes Integration Tests', () => {
 
   describe('POST /api/v1/auth/refresh', () => {
     it('should refresh tokens successfully', async () => {
-      (authService.refreshTokens as jest.Mock).mockResolvedValue({
+      (authService.refreshAccessToken as jest.Mock).mockResolvedValue({
         accessToken: 'new-access-token',
-        refreshToken: 'new-refresh-token'
+        refreshToken: 'new-refresh-token',
+        user: {
+          id: 'user123',
+          email: 'test@example.com',
+          role: UserRole.TRAFFIC_MANAGER
+        }
       });
 
       const response = await request(app)
@@ -128,7 +134,7 @@ describe('Auth Routes Integration Tests', () => {
     });
 
     it('should fail with invalid refresh token', async () => {
-      (authService.refreshTokens as jest.Mock).mockResolvedValue(null);
+      (authService.refreshAccessToken as jest.Mock).mockResolvedValue(null);
 
       const response = await request(app)
         .post('/api/v1/auth/refresh')
@@ -138,7 +144,7 @@ describe('Auth Routes Integration Tests', () => {
 
       expect(response.status).toBe(401);
       expect(response.body.success).toBe(false);
-      expect(response.body.message).toBe('Invalid refresh token');
+      expect(response.body.message).toBe('Invalid or expired refresh token');
     });
 
     it('should fail with missing refresh token', async () => {
@@ -166,7 +172,7 @@ describe('Auth Routes Integration Tests', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-      expect(response.body.data.user.email).toBe('test@example.com');
+      expect(response.body.data.email).toBe('test@example.com');
     });
 
     it('should fail without token', async () => {
@@ -210,7 +216,7 @@ describe('Auth Routes Integration Tests', () => {
 
       expect(response.status).toBe(201);
       expect(response.body.success).toBe(true);
-      expect(response.body.data.user.email).toBe(newUser.email);
+      expect(response.body.data.email).toBe(newUser.email);
     });
 
     it('should fail to create user as non-admin', async () => {

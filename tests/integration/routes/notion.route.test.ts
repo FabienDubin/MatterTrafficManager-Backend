@@ -292,7 +292,7 @@ describe('Notion Routes Integration Tests', () => {
       const mockTask = {
         id: 'task1',
         title: 'Test Task',
-        workPeriod: { startDate: new Date(), endDate: new Date() },
+        workPeriod: { startDate: '2024-01-01', endDate: '2024-01-02' },
         assignedMembers: ['user1'],
         projectId: 'project1',
         taskType: 'task',
@@ -305,8 +305,8 @@ describe('Notion Routes Integration Tests', () => {
         clientPlanning: false,
         client: 'Client A',
         team: 'Team B',
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdTime: '2024-01-01T00:00:00Z',
+        lastEditedTime: '2024-01-01T00:00:00Z'
       };
 
       (notionService.queryTrafficDatabase as jest.Mock).mockResolvedValueOnce({
@@ -353,7 +353,7 @@ describe('Notion Routes Integration Tests', () => {
         .get('/api/v1/notion/test')
         .set('Authorization', validToken);
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(429);
     });
 
     it('should handle generic errors', async () => {

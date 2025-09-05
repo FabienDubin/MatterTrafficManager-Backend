@@ -1,12 +1,14 @@
-import { Client } from '@notionhq/client';
 import notionService from '../../../src/services/notion.service';
 import * as rateLimiter from '../../../src/services/rateLimiter.service';
 import * as retryWithBackoff from '../../../src/utils/retryWithBackoff';
 import { NotionAPIError } from '../../../src/errors/NotionAPIError';
+import { notion } from '../../../src/config/notion.config';
+import * as notionMapper from '../../../src/mappers/notion.mapper';
 
-jest.mock('@notionhq/client');
+jest.mock('../../../src/config/notion.config');
 jest.mock('../../../src/services/rateLimiter.service');
 jest.mock('../../../src/utils/retryWithBackoff');
+jest.mock('../../../src/mappers/notion.mapper');
 jest.mock('../../../src/config/logger.config', () => ({
   __esModule: true,
   default: {
@@ -18,26 +20,8 @@ jest.mock('../../../src/config/logger.config', () => ({
 }));
 
 describe('NotionService', () => {
-  let mockNotionClient: any;
-  
   beforeEach(() => {
     jest.clearAllMocks();
-    
-    mockNotionClient = {
-      users: {
-        list: jest.fn()
-      },
-      databases: {
-        query: jest.fn()
-      },
-      pages: {
-        create: jest.fn(),
-        retrieve: jest.fn(),
-        update: jest.fn()
-      }
-    };
-    
-    (Client as jest.Mock).mockImplementation(() => mockNotionClient);
     
     (rateLimiter.throttledNotionCall as jest.Mock).mockImplementation(
       (fn) => fn()
@@ -50,19 +34,19 @@ describe('NotionService', () => {
 
   describe('testConnection', () => {
     it('should return true when connection is successful', async () => {
-      mockNotionClient.users.list.mockResolvedValueOnce({
+      (notion.users.list as jest.Mock).mockResolvedValueOnce({
         results: [{ id: 'user1' }]
       });
 
       const result = await notionService.testConnection();
 
       expect(result).toBe(true);
-      expect(mockNotionClient.users.list).toHaveBeenCalledWith({ page_size: 1 });
+      expect(notion.users.list).toHaveBeenCalledWith({ page_size: 1 });
     });
 
     it('should throw NotionAPIError when connection fails', async () => {
       const error = { status: 401, message: 'Unauthorized' };
-      mockNotionClient.users.list.mockRejectedValueOnce(error);
+      (notion.users.list as jest.Mock).mockRejectedValueOnce(error);
 
       await expect(notionService.testConnection()).rejects.toThrow(NotionAPIError);
     });
@@ -98,7 +82,20 @@ describe('NotionService', () => {
         next_cursor: null
       };
 
-      mockNotionClient.databases.query.mockResolvedValueOnce(mockResponse);
+      const mockTask = {
+        id: 'task1',
+        title: 'Test Task',
+        workPeriod: { startDate: '2024-01-01', endDate: '2024-01-02' },
+        assignedTo: [],
+        projects: [],
+        trafficManagerChoice: null,
+        status: 'not_started',
+        createdTime: '2024-01-01T00:00:00Z',
+        lastEditedTime: '2024-01-01T00:00:00Z'
+      };
+
+      (notion.databases.query as jest.Mock).mockResolvedValueOnce(mockResponse);
+      (notionMapper.notionPageToTask as jest.Mock).mockReturnValue(mockTask);
 
       const result = await notionService.queryTrafficDatabase();
 
@@ -115,11 +112,11 @@ describe('NotionService', () => {
         next_cursor: 'cursor123'
       };
 
-      mockNotionClient.databases.query.mockResolvedValueOnce(mockResponse);
+      (notion.databases.query as jest.Mock).mockResolvedValueOnce(mockResponse);
 
       const result = await notionService.queryTrafficDatabase('prev-cursor', 50);
 
-      expect(mockNotionClient.databases.query).toHaveBeenCalledWith(
+      expect((notion.databases.query as jest.Mock)).toHaveBeenCalledWith(
         expect.objectContaining({
           page_size: 50,
           start_cursor: 'prev-cursor'
@@ -163,13 +160,30 @@ describe('NotionService', () => {
         last_edited_time: '2024-01-01T00:00:00Z'
       };
 
-      mockNotionClient.pages.create.mockResolvedValueOnce(mockCreatedPage);
+      const mockTask = {
+        id: 'task123',
+        title: 'New Task',
+        workPeriod: { startDate: '2024-01-01', endDate: '2024-01-02' },
+        taskType: 'task',
+        status: 'not_started',
+        createdTime: '2024-01-01T00:00:00Z',
+        lastEditedTime: '2024-01-01T00:00:00Z'
+      };
+
+      (notion.pages.create as jest.Mock).mockResolvedValueOnce(mockCreatedPage);
+      (notionMapper.notionPageToTask as jest.Mock).mockReturnValue(mockTask);
+      (notionMapper.createNotionTaskProperties as jest.Mock).mockReturnValue({
+        title: { title: [{ text: { content: 'New Task' } }] },
+        '%40WIV': { date: { start: '2024-01-01', end: '2024-01-02' } },
+        'fMMJ': { select: { name: 'not_started' } },
+        'Zq%40f': { select: { name: 'task' } }
+      });
 
       const result = await notionService.createTask(input);
 
       expect(result.id).toBe('task123');
       expect(result.title).toBe('New Task');
-      expect(mockNotionClient.pages.create).toHaveBeenCalledWith(
+      expect((notion.pages.create as jest.Mock)).toHaveBeenCalledWith(
         expect.objectContaining({
           parent: expect.any(Object),
           properties: expect.any(Object)
@@ -187,7 +201,7 @@ describe('NotionService', () => {
       };
 
       const error = { status: 400, message: 'Bad request' };
-      mockNotionClient.pages.create.mockRejectedValueOnce(error);
+      (notion.pages.create as jest.Mock).mockRejectedValueOnce(error);
 
       await expect(notionService.createTask(input)).rejects.toThrow(NotionAPIError);
     });
@@ -223,13 +237,26 @@ describe('NotionService', () => {
         last_edited_time: '2024-01-01T00:00:00Z'
       };
 
-      mockNotionClient.pages.update.mockResolvedValueOnce(mockUpdatedPage);
+      const mockTask = {
+        id: taskId,
+        title: 'Updated Task',
+        status: 'completed',
+        createdTime: '2024-01-01T00:00:00Z',
+        lastEditedTime: '2024-01-01T00:00:00Z'
+      };
+
+      (notion.pages.update as jest.Mock).mockResolvedValueOnce(mockUpdatedPage);
+      (notionMapper.notionPageToTask as jest.Mock).mockReturnValue(mockTask);
+      (notionMapper.createNotionTaskProperties as jest.Mock).mockReturnValue({
+        title: { title: [{ text: { content: 'Updated Task' } }] },
+        'fMMJ': { select: { name: 'completed' } }
+      });
 
       const result = await notionService.updateTask(taskId, input);
 
       expect(result.title).toBe('Updated Task');
       expect(result.status).toBe('completed');
-      expect(mockNotionClient.pages.update).toHaveBeenCalledWith(
+      expect((notion.pages.update as jest.Mock)).toHaveBeenCalledWith(
         expect.objectContaining({
           page_id: taskId,
           properties: expect.any(Object)
@@ -241,11 +268,11 @@ describe('NotionService', () => {
   describe('archiveTask', () => {
     it('should archive a task successfully', async () => {
       const taskId = 'task123';
-      mockNotionClient.pages.update.mockResolvedValueOnce({});
+      (notion.pages.update as jest.Mock).mockResolvedValueOnce({});
 
       await notionService.archiveTask(taskId);
 
-      expect(mockNotionClient.pages.update).toHaveBeenCalledWith({
+      expect((notion.pages.update as jest.Mock)).toHaveBeenCalledWith({
         page_id: taskId,
         archived: true
       });
@@ -254,7 +281,7 @@ describe('NotionService', () => {
 
   describe('testRateLimit', () => {
     it('should test rate limiting successfully', async () => {
-      mockNotionClient.users.list.mockResolvedValue({
+      (notion.users.list as jest.Mock).mockResolvedValue({
         results: [{ id: 'user1' }]
       });
 
@@ -272,7 +299,7 @@ describe('NotionService', () => {
 
   describe('validateAllDatabases', () => {
     it('should validate all databases successfully', async () => {
-      mockNotionClient.databases.query.mockResolvedValue({
+      (notion.databases.query as jest.Mock).mockResolvedValue({
         results: [{ id: 'item1' }]
       });
 
@@ -287,7 +314,7 @@ describe('NotionService', () => {
     });
 
     it('should handle database validation failures', async () => {
-      mockNotionClient.databases.query
+      (notion.databases.query as jest.Mock)
         .mockResolvedValueOnce({ results: [] })
         .mockRejectedValueOnce(new Error('Access denied'))
         .mockResolvedValueOnce({ results: [] })

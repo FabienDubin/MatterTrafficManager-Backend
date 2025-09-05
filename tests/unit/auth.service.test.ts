@@ -8,6 +8,7 @@ import bcrypt from 'bcrypt';
 // Mock dependencies
 jest.mock('../../src/repositories/user.repository');
 jest.mock('../../src/models/RefreshToken.model');
+jest.mock('../../src/config/auth.config');
 jest.mock('../../src/config/logger.config', () => {
   return {
     __esModule: true,
