@@ -26,4 +26,42 @@ export class HealthController {
       next(error);
     }
   }
+
+  /**
+   * Check if service is ready (all dependencies accessible)
+   * @route GET /api/v1/health/ready
+   */
+  static async getReady(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const readyData = await healthService.getReadyStatus();
+      const statusCode = readyData.ready ? 200 : 503;
+      
+      logger.info('Ready check requested', {
+        timestamp: readyData.timestamp,
+        ready: readyData.ready
+      });
+
+      res.status(statusCode).json(readyData);
+    } catch (error) {
+      logger.error('Ready check failed', { error });
+      next(error);
+    }
+  }
+
+  /**
+   * Get version information
+   * @route GET /api/v1/health/version
+   */
+  static async getVersion(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const versionData = healthService.getVersionInfo();
+      
+      logger.info('Version info requested');
+
+      res.status(200).json(versionData);
+    } catch (error) {
+      logger.error('Version info failed', { error });
+      next(error);
+    }
+  }
 }

@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import os from 'os';
+import { Client } from '@notionhq/client';
 
 /**
  * Health service interface
@@ -20,6 +21,22 @@ interface HealthStatus {
     status: string;
     connected: boolean;
   };
+}
+
+interface ReadyStatus {
+  ready: boolean;
+  timestamp: string;
+  checks: {
+    database: boolean;
+    notion: boolean;
+  };
+}
+
+interface VersionInfo {
+  name: string;
+  version: string;
+  environment: string;
+  node: string;
 }
 
 /**
@@ -68,6 +85,59 @@ export class HealthService {
     return {
       status: states[mongooseState as keyof typeof states] || 'unknown',
       connected: mongooseState === 1
+    };
+  }
+
+  /**
+   * Get readiness status for all external dependencies
+   */
+  async getReadyStatus(): Promise<ReadyStatus> {
+    const readyStatus: ReadyStatus = {
+      ready: false,
+      timestamp: new Date().toISOString(),
+      checks: {
+        database: false,
+        notion: false
+      }
+    };
+
+    // Check MongoDB connection
+    readyStatus.checks.database = mongoose.connection.readyState === 1;
+
+    // Check Notion API (only if key is configured)
+    if (process.env.NOTION_API_KEY) {
+      try {
+        const notion = new Client({
+          auth: process.env.NOTION_API_KEY
+        });
+        
+        // Simple call to verify connection - me() requires empty object as param
+        await notion.users.me({});
+        readyStatus.checks.notion = true;
+      } catch (error) {
+        console.error('Notion API check failed:', error);
+        readyStatus.checks.notion = false;
+      }
+    } else {
+      // If no Notion key configured, consider it OK (optional config)
+      readyStatus.checks.notion = true;
+    }
+
+    // Service is ready if all checks pass
+    readyStatus.ready = readyStatus.checks.database && readyStatus.checks.notion;
+
+    return readyStatus;
+  }
+
+  /**
+   * Get version information
+   */
+  getVersionInfo(): VersionInfo {
+    return {
+      name: 'Matter Traffic Manager Backend',
+      version: process.env.npm_package_version || '1.0.0',
+      environment: process.env.NODE_ENV || 'development',
+      node: process.version
     };
   }
 }

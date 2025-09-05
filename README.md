@@ -1,11 +1,11 @@
-# Matter Traffic Backend
+# Matter Traffic Manager - Backend
 
 API backend pour Matter Traffic Manager - Gestionnaire de trafic intelligent basé sur Notion.
 
 ## 🚀 Stack Technologique
 
 - **Runtime**: Node.js 20+
-- **Framework**: Express 5.1+  
+- **Framework**: Express 5.1+
 - **Langage**: TypeScript 5.7+
 - **Base de données**: MongoDB 8.0
 - **ODM**: Mongoose 8.8+
@@ -131,12 +131,14 @@ docs/
 ## 🔌 Endpoints principaux
 
 ### 🏥 Santé et Info
+
 ```
 GET    /                        # Info API et version
 GET    /api/v1/health          # Santé de l'API et services
 ```
 
 ### 🔐 Authentification (JWT)
+
 ```
 POST   /api/v1/auth/login      # Login avec email/password
 POST   /api/v1/auth/refresh    # Renouveler access token
@@ -146,6 +148,7 @@ POST   /api/v1/auth/users      # Créer utilisateur (admin)
 ```
 
 ### 📋 Tâches (à venir)
+
 ```
 GET    /api/v1/tasks           # Liste des tâches
 POST   /api/v1/tasks           # Créer une tâche
@@ -154,6 +157,7 @@ DELETE /api/v1/tasks/:id       # Supprimer une tâche
 ```
 
 ### 📚 Documentation
+
 ```
 GET    /api-docs               # Swagger UI (dev only)
 GET    /api/v1/docs/openapi.json # OpenAPI Spec
@@ -178,6 +182,7 @@ npm test -- --testPathPattern=integration
 ## 📊 Base de données
 
 ### Collections principales:
+
 - `users`: Utilisateurs de l'application (auth)
 - `refreshtokens`: Tokens de refresh (TTL 7 jours)
 - `tasks`: Tâches synchronisées avec Notion (à venir)
@@ -185,6 +190,7 @@ npm test -- --testPathPattern=integration
 - `members`: Membres synchronisés depuis Notion (à venir)
 
 ### Index optimisés:
+
 - `users`: email (unique), memberId
 - `refreshtokens`: token (unique), userId, family, expiresAt (TTL)
 - `tasks`: projectId, status, createdAt, dueDate (à venir)
@@ -193,11 +199,13 @@ npm test -- --testPathPattern=integration
 ## 🚢 Déploiement
 
 ### Environnement de développement
+
 ```bash
 docker-compose up backend
 ```
 
 ### Build de production
+
 ```bash
 npm run build
 npm start
@@ -214,6 +222,7 @@ npm start
 ## 🔍 Debugging
 
 ### Logs de développement
+
 ```bash
 # Logs complets
 NODE_ENV=development LOG_LEVEL=debug npm run dev
@@ -223,6 +232,7 @@ DEBUG=mongoose:* npm run dev
 ```
 
 ### Tests de santé
+
 ```bash
 # Vérifier que l'API répond
 curl http://localhost:5005/api/v1/health
@@ -232,6 +242,7 @@ curl http://localhost:5005/
 ```
 
 ### Tests d'authentification
+
 ```bash
 # Login (utilisateur admin par défaut)
 curl -X POST http://localhost:5005/api/v1/auth/login \
@@ -246,9 +257,10 @@ curl -X GET http://localhost:5005/api/v1/auth/me \
 ## ⚡ Performance & Sécurité
 
 ### Sécurité
+
 - **Authentification JWT** avec access token (8h) et refresh token (7j)
 - **Hashing bcrypt** avec 12 rounds pour les mots de passe
-- **Rate limiting**: 
+- **Rate limiting**:
   - Global: 100 req/15min par IP
   - Login: 5 tentatives/15min
 - **Helmet.js** pour les headers de sécurité
@@ -256,6 +268,7 @@ curl -X GET http://localhost:5005/api/v1/auth/me \
 - **Validation Zod** sur toutes les entrées
 
 ### Performance
+
 - Compression gzip activée
 - Index MongoDB optimisés
 - Cache TTL natif MongoDB
@@ -264,7 +277,7 @@ curl -X GET http://localhost:5005/api/v1/auth/me \
 ## 🛠️ Outils de développement
 
 - **Nodemon**: Hot reload automatique
-- **ts-node**: Exécution TypeScript directe  
+- **ts-node**: Exécution TypeScript directe
 - **Jest**: Framework de test
 - **Supertest**: Tests d'API
 - **ESLint**: Linting TypeScript

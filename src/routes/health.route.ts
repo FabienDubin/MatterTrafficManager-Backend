@@ -76,4 +76,32 @@ const router = Router();
  */
 router.get('/', HealthController.getHealth);
 
+/**
+ * @swagger
+ * /api/v1/health/ready:
+ *   get:
+ *     summary: Readiness check endpoint
+ *     description: Checks if all external dependencies are accessible
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Service is ready
+ *       503:
+ *         description: Service is not ready
+ */
+router.get('/ready', HealthController.getReady);
+
+/**
+ * @swagger
+ * /api/v1/health/version:
+ *   get:
+ *     summary: Version information endpoint
+ *     description: Returns version information about the service
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Version information
+ */
+router.get('/version', HealthController.getVersion);
+
 export default router;

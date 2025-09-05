@@ -145,7 +145,7 @@ export class AuthService {
   /**
    * Refresh access token using refresh token
    */
-  async refreshAccessToken(refreshToken: string): Promise<AuthTokens | null> {
+  async refreshAccessToken(refreshToken: string): Promise<LoginResult | null> {
     try {
       // Find refresh token in database
       const tokenDoc = await RefreshTokenModel.findOne({
@@ -188,7 +188,16 @@ export class AuthService {
 
       logger.info(`Tokens refreshed for user: ${user.email}`);
 
-      return tokens;
+      // Return tokens with user info like login does
+      return {
+        ...tokens,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          ...(user.memberId && { memberId: user.memberId }),
+        },
+      };
     } catch (error) {
       logger.error('Error refreshing access token:', error);
       throw error;
