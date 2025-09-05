@@ -16,6 +16,7 @@ import {
 } from '../../../src/mappers/notion.mapper';
 
 jest.mock('../../../src/config/logger.config', () => ({
+  __esModule: true,
   default: {
     debug: jest.fn(),
     info: jest.fn(),

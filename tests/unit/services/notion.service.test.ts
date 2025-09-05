@@ -8,6 +8,7 @@ jest.mock('@notionhq/client');
 jest.mock('../../../src/services/rateLimiter.service');
 jest.mock('../../../src/utils/retryWithBackoff');
 jest.mock('../../../src/config/logger.config', () => ({
+  __esModule: true,
   default: {
     info: jest.fn(),
     error: jest.fn(),
