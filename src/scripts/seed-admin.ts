@@ -14,13 +14,13 @@ async function seedAdminUser() {
   try {
     // Connect to MongoDB
     const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27018/mattertraffic';
-    
+
     await mongoose.connect(mongoUri);
     logger.info('Connected to MongoDB for seeding');
 
     // Check if admin already exists
     const existingAdmin = await UserModel.findOne({ email: 'admin@mattertraffic.fr' });
-    
+
     if (existingAdmin) {
       logger.info('Admin user already exists');
       await mongoose.disconnect();
@@ -37,14 +37,15 @@ async function seedAdminUser() {
     });
 
     await adminUser.save();
-    
+
     logger.info('Admin user created successfully');
     logger.info(`Email: admin@mattertraffic.fr`);
-    logger.info(`Password: ${process.env.NODE_ENV === 'production' ? 'ChangeMe123! (MUST BE CHANGED)' : 'dev123'}`);
-    
+    logger.info(
+      `Password: ${process.env.NODE_ENV === 'production' ? 'ChangeMe123! (MUST BE CHANGED)' : 'dev123'}`
+    );
+
     await mongoose.disconnect();
     logger.info('Disconnected from MongoDB');
-    
   } catch (error) {
     logger.error('Error seeding admin user:', error);
     await mongoose.disconnect();
