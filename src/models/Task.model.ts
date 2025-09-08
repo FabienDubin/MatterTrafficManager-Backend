@@ -1,99 +1,219 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-// Interface TypeScript pour la tâche
+/**
+ * Interface TypeScript pour Task (cache Notion)
+ */
 export interface ITask extends Document {
+  id: string;
+  notionId: string; // Unique, indexed
   title: string;
-  description?: string;
-  status: 'todo' | 'in_progress' | 'done';
-  priority: 'low' | 'medium' | 'high';
-  dueDate?: Date;
-  projectId: mongoose.Types.ObjectId;
-  assigneeId?: mongoose.Types.ObjectId;
-  notionId?: string;
+  workPeriod: {
+    startDate: Date;
+    endDate: Date;
+  };
+  assignedMembers: string[]; // Member IDs
+  projectId: string;
+  clientId?: string;
+  status: "not_started" | "to_be_validated" | "completed";
+  taskType: "task" | "holiday" | "school" | "remote";
+  notes?: string;
+  billedHours?: number;
+  actualHours?: number;
+  addToCalendar?: boolean;
+  addToClientPlanning?: boolean;
+  // Metadata
+  lastNotionSync: Date;
+  _ttl: Date; // Pour expiration automatique
   createdAt: Date;
   updatedAt: Date;
 }
 
-// Schéma Mongoose pour la tâche
+/**
+ * Schéma Mongoose pour Task avec TTL automatique
+ */
 const TaskSchema: Schema = new Schema(
   {
+    notionId: {
+      type: String,
+      required: [true, 'Notion ID is required'],
+      unique: true,
+      index: true,
+    },
     title: {
       type: String,
-      required: [true, 'Le titre de la tâche est obligatoire'],
+      required: [true, 'Title is required'],
       trim: true,
-      maxlength: [200, 'Le titre ne peut pas dépasser 200 caractères'],
+      maxlength: [500, 'Title cannot exceed 500 characters'],
     },
-    description: {
+    workPeriod: {
+      startDate: {
+        type: Date,
+        required: [true, 'Work period start date is required'],
+      },
+      endDate: {
+        type: Date,
+        required: [true, 'Work period end date is required'],
+        validate: {
+          validator: function(this: ITask, endDate: Date) {
+            return endDate >= this.workPeriod.startDate;
+          },
+          message: 'End date must be after or equal to start date'
+        }
+      },
+    },
+    assignedMembers: [{
       type: String,
-      trim: true,
-      maxlength: [2000, 'La description ne peut pas dépasser 2000 caractères'],
+      required: true,
+    }],
+    projectId: {
+      type: String,
+      required: [true, 'Project ID is required'],
+      index: true,
+    },
+    clientId: {
+      type: String,
+      index: true,
     },
     status: {
       type: String,
-      enum: ['todo', 'in_progress', 'done'],
-      default: 'todo',
+      enum: ['not_started', 'to_be_validated', 'completed'],
+      default: 'not_started',
       required: true,
+      index: true,
     },
-    priority: {
+    taskType: {
       type: String,
-      enum: ['low', 'medium', 'high'],
-      default: 'medium',
+      enum: ['task', 'holiday', 'school', 'remote'],
+      default: 'task',
       required: true,
     },
-    dueDate: {
+    notes: {
+      type: String,
+      trim: true,
+      maxlength: [2000, 'Notes cannot exceed 2000 characters'],
+    },
+    billedHours: {
+      type: Number,
+      min: [0, 'Billed hours cannot be negative'],
+      max: [1000, 'Billed hours cannot exceed 1000'],
+    },
+    actualHours: {
+      type: Number,
+      min: [0, 'Actual hours cannot be negative'],
+      max: [1000, 'Actual hours cannot exceed 1000'],
+    },
+    addToCalendar: {
+      type: Boolean,
+      default: false,
+    },
+    addToClientPlanning: {
+      type: Boolean,
+      default: false,
+    },
+    lastNotionSync: {
       type: Date,
-      validate: {
-        validator: function (date: Date) {
-          return date > new Date();
-        },
-        message: 'La date d\'échéance doit être dans le futur',
-      },
+      required: true,
+      default: Date.now,
     },
-    projectId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Project',
-      required: [true, 'L\'ID du projet est obligatoire'],
-    },
-    assigneeId: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-    },
-    notionId: {
-      type: String,
-      unique: true,
-      sparse: true, // Permet des valeurs nulles uniques
+    _ttl: {
+      type: Date,
+      required: true,
+      default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 jours
     },
   },
   {
-    timestamps: true, // Ajoute automatiquement createdAt et updatedAt
+    timestamps: true,
     versionKey: false,
   }
 );
 
-// Index pour optimiser les requêtes
-TaskSchema.index({ projectId: 1, status: 1 });
-TaskSchema.index({ dueDate: 1 });
-TaskSchema.index({ createdAt: -1 });
-TaskSchema.index({ notionId: 1 }, { sparse: true });
+// Index TTL pour expiration automatique
+TaskSchema.index({ _ttl: 1 }, { expireAfterSeconds: 0 });
 
-// Méthode d'instance pour marquer comme terminée
-TaskSchema.methods.markAsCompleted = function (): Promise<ITask> {
-  this.status = 'done';
+// Index composé pour optimiser les requêtes par période de travail
+TaskSchema.index({ 
+  'workPeriod.startDate': 1, 
+  'workPeriod.endDate': 1 
+});
+
+// Index composé pour recherche par membres assignés
+TaskSchema.index({ assignedMembers: 1, status: 1 });
+
+// Index pour recherche par projet et status
+TaskSchema.index({ projectId: 1, status: 1 });
+
+// Index pour recherche par client
+TaskSchema.index({ clientId: 1 });
+
+/**
+ * Méthode d'instance pour marquer comme terminée
+ */
+TaskSchema.methods.markAsCompleted = function(): Promise<ITask> {
+  this.status = 'completed';
   return this.save();
 };
 
-// Méthode statique pour trouver les tâches en retard
-TaskSchema.statics.findOverdue = function () {
+/**
+ * Méthode statique pour trouver les tâches par période
+ */
+TaskSchema.statics.findByDateRange = function(startDate: Date, endDate: Date) {
   return this.find({
-    dueDate: { $lt: new Date() },
-    status: { $ne: 'done' },
+    $or: [
+      {
+        'workPeriod.startDate': { $gte: startDate, $lte: endDate }
+      },
+      {
+        'workPeriod.endDate': { $gte: startDate, $lte: endDate }
+      },
+      {
+        'workPeriod.startDate': { $lte: startDate },
+        'workPeriod.endDate': { $gte: endDate }
+      }
+    ]
   });
 };
 
-// Middleware pre-save pour la validation
+/**
+ * Méthode statique pour trouver par membre assigné
+ */
+TaskSchema.statics.findByAssignedMember = function(memberId: string) {
+  return this.find({ assignedMembers: memberId });
+};
+
+/**
+ * Méthode statique pour synchronisation depuis Notion
+ */
+TaskSchema.statics.upsertFromNotion = async function(notionData: any): Promise<ITask> {
+  const filter = { notionId: notionData.notionId };
+  const update = {
+    ...notionData,
+    lastNotionSync: new Date(),
+    _ttl: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Reset TTL
+  };
+  
+  return this.findOneAndUpdate(filter, update, {
+    upsert: true,
+    new: true,
+    runValidators: true,
+  });
+};
+
+/**
+ * Middleware pre-save pour validation
+ */
 TaskSchema.pre<ITask>('save', function (next) {
-  // Validation personnalisée si nécessaire
+  // Vérifier que la période de travail est cohérente
+  if (this.workPeriod.endDate < this.workPeriod.startDate) {
+    next(new Error('End date cannot be before start date'));
+    return;
+  }
+  
+  // Mise à jour du TTL à chaque sauvegarde
+  if (!this._ttl) {
+    this._ttl = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  }
+  
   next();
 });
 
-export const Task = mongoose.model<ITask>('Task', TaskSchema);
+export const TaskModel = mongoose.model<ITask>('Task', TaskSchema);

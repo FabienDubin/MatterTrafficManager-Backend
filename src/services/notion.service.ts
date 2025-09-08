@@ -430,6 +430,183 @@ class NotionService {
     }
   }
 
+  /**
+   * Récupère TOUTES les tâches de la base Traffic en gérant la pagination
+   * Note: Cette méthode peut prendre du temps pour les grosses bases (>100 items)
+   * @returns Toutes les tâches de la base Traffic
+   */
+  async getAllTrafficTasks(): Promise<NotionTask[]> {
+    const allTasks: NotionTask[] = [];
+    let hasMore = true;
+    let cursor: string | undefined = undefined;
+    let pageCount = 0;
+
+    logger.info('Starting full traffic database fetch');
+
+    try {
+      while (hasMore) {
+        const result = await this.queryTrafficDatabase(cursor, 100);
+        allTasks.push(...result.results);
+        hasMore = result.hasMore;
+        cursor = result.nextCursor;
+        pageCount++;
+
+        logger.info(`Fetched page ${pageCount}: ${result.results.length} tasks (total: ${allTasks.length})`);
+      }
+
+      logger.info(`Completed traffic database fetch: ${allTasks.length} tasks in ${pageCount} pages`);
+      return allTasks;
+    } catch (error) {
+      logger.error('Failed to fetch all traffic tasks', { 
+        error, 
+        pagesCompleted: pageCount,
+        tasksRetrieved: allTasks.length 
+      });
+      throw NotionAPIError.fromError(error);
+    }
+  }
+
+  /**
+   * Récupère TOUS les utilisateurs en gérant la pagination
+   * @returns Tous les utilisateurs de la base Users
+   */
+  async getAllUsers(): Promise<NotionUser[]> {
+    const allUsers: NotionUser[] = [];
+    let hasMore = true;
+    let cursor: string | undefined = undefined;
+    let pageCount = 0;
+
+    logger.info('Starting full users database fetch');
+
+    try {
+      while (hasMore) {
+        const result = await this.queryUsersDatabase(cursor, 100);
+        allUsers.push(...result.results);
+        hasMore = result.hasMore;
+        cursor = result.nextCursor;
+        pageCount++;
+
+        logger.info(`Fetched page ${pageCount}: ${result.results.length} users (total: ${allUsers.length})`);
+      }
+
+      logger.info(`Completed users database fetch: ${allUsers.length} users in ${pageCount} pages`);
+      return allUsers;
+    } catch (error) {
+      logger.error('Failed to fetch all users', { 
+        error, 
+        pagesCompleted: pageCount,
+        usersRetrieved: allUsers.length 
+      });
+      throw NotionAPIError.fromError(error);
+    }
+  }
+
+  /**
+   * Récupère TOUS les projets en gérant la pagination
+   * @param filters Filtres optionnels (ex: status)
+   * @returns Tous les projets de la base Projects
+   */
+  async getAllProjects(filters?: { status?: string }): Promise<NotionProject[]> {
+    const allProjects: NotionProject[] = [];
+    let hasMore = true;
+    let cursor: string | undefined = undefined;
+    let pageCount = 0;
+
+    logger.info('Starting full projects database fetch', { filters });
+
+    try {
+      while (hasMore) {
+        const result = await this.queryProjectsDatabase(filters, cursor, 100);
+        allProjects.push(...result.results);
+        hasMore = result.hasMore;
+        cursor = result.nextCursor;
+        pageCount++;
+
+        logger.info(`Fetched page ${pageCount}: ${result.results.length} projects (total: ${allProjects.length})`);
+      }
+
+      logger.info(`Completed projects database fetch: ${allProjects.length} projects in ${pageCount} pages`);
+      return allProjects;
+    } catch (error) {
+      logger.error('Failed to fetch all projects', { 
+        error, 
+        pagesCompleted: pageCount,
+        projectsRetrieved: allProjects.length 
+      });
+      throw NotionAPIError.fromError(error);
+    }
+  }
+
+  /**
+   * Récupère TOUS les clients en gérant la pagination
+   * @returns Tous les clients de la base Clients
+   */
+  async getAllClients(): Promise<NotionClient[]> {
+    const allClients: NotionClient[] = [];
+    let hasMore = true;
+    let cursor: string | undefined = undefined;
+    let pageCount = 0;
+
+    logger.info('Starting full clients database fetch');
+
+    try {
+      while (hasMore) {
+        const result = await this.queryClientsDatabase(cursor, 100);
+        allClients.push(...result.results);
+        hasMore = result.hasMore;
+        cursor = result.nextCursor;
+        pageCount++;
+
+        logger.info(`Fetched page ${pageCount}: ${result.results.length} clients (total: ${allClients.length})`);
+      }
+
+      logger.info(`Completed clients database fetch: ${allClients.length} clients in ${pageCount} pages`);
+      return allClients;
+    } catch (error) {
+      logger.error('Failed to fetch all clients', { 
+        error, 
+        pagesCompleted: pageCount,
+        clientsRetrieved: allClients.length 
+      });
+      throw NotionAPIError.fromError(error);
+    }
+  }
+
+  /**
+   * Récupère TOUTES les équipes en gérant la pagination
+   * @returns Toutes les équipes de la base Teams
+   */
+  async getAllTeams(): Promise<NotionTeam[]> {
+    const allTeams: NotionTeam[] = [];
+    let hasMore = true;
+    let cursor: string | undefined = undefined;
+    let pageCount = 0;
+
+    logger.info('Starting full teams database fetch');
+
+    try {
+      while (hasMore) {
+        const result = await this.queryTeamsDatabase(cursor, 100);
+        allTeams.push(...result.results);
+        hasMore = result.hasMore;
+        cursor = result.nextCursor;
+        pageCount++;
+
+        logger.info(`Fetched page ${pageCount}: ${result.results.length} teams (total: ${allTeams.length})`);
+      }
+
+      logger.info(`Completed teams database fetch: ${allTeams.length} teams in ${pageCount} pages`);
+      return allTeams;
+    } catch (error) {
+      logger.error('Failed to fetch all teams', { 
+        error, 
+        pagesCompleted: pageCount,
+        teamsRetrieved: allTeams.length 
+      });
+      throw NotionAPIError.fromError(error);
+    }
+  }
+
   async validateAllDatabases(): Promise<{
     success: boolean;
     databases: {

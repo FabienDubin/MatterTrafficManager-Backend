@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import os from 'os';
 import { Client } from '@notionhq/client';
+import { checkDatabaseHealth } from '../config/database.config';
 
 /**
  * Health service interface
@@ -20,6 +21,7 @@ interface HealthStatus {
   database: {
     status: string;
     connected: boolean;
+    details?: any;
   };
 }
 
@@ -52,10 +54,10 @@ export class HealthService {
     const totalMemory = os.totalmem();
     const usedMemory = totalMemory - os.freemem();
 
-    const databaseStatus = this.getDatabaseStatus();
+    const databaseStatus = await this.getDatabaseStatus();
 
     return {
-      status: 'OK',
+      status: databaseStatus.status === 'healthy' ? 'OK' : 'DEGRADED',
       message: 'Matter Traffic Backend is operational',
       timestamp: new Date().toISOString(),
       systemInfo: {
@@ -66,26 +68,26 @@ export class HealthService {
         },
         nodeVersion: process.version
       },
-      database: databaseStatus
+      database: {
+        status: databaseStatus.status === 'healthy' ? 'connected' : 'unhealthy',
+        connected: databaseStatus.status === 'healthy',
+        details: databaseStatus.details
+      }
     };
   }
 
   /**
-   * Check database connection status
+   * Check database connection status using advanced health check
    */
-  private getDatabaseStatus() {
-    const mongooseState = mongoose.connection.readyState;
-    const states = {
-      0: 'disconnected',
-      1: 'connected',
-      2: 'connecting',
-      3: 'disconnecting'
-    };
-
-    return {
-      status: states[mongooseState as keyof typeof states] || 'unknown',
-      connected: mongooseState === 1
-    };
+  private async getDatabaseStatus() {
+    try {
+      return await checkDatabaseHealth();
+    } catch (error) {
+      return {
+        status: 'unhealthy' as const,
+        details: { error: (error as Error).message }
+      };
+    }
   }
 
   /**
