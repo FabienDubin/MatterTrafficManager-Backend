@@ -45,8 +45,7 @@ app.use(cors({
     
     // Check if origin is in the allowed list
     if (allowedOrigins.includes(origin) || 
-        origin.includes('mattertrafficmanager.com') || 
-) {
+        origin.includes('mattertrafficmanager.com')) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
