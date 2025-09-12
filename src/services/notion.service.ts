@@ -448,7 +448,7 @@ class NotionService {
         const result = await this.queryTrafficDatabase(cursor, 100);
         allTasks.push(...result.results);
         hasMore = result.hasMore;
-        cursor = result.nextCursor;
+        cursor = result.nextCursor || undefined;
         pageCount++;
 
         logger.info(`Fetched page ${pageCount}: ${result.results.length} tasks (total: ${allTasks.length})`);
@@ -483,7 +483,7 @@ class NotionService {
         const result = await this.queryUsersDatabase(cursor, 100);
         allUsers.push(...result.results);
         hasMore = result.hasMore;
-        cursor = result.nextCursor;
+        cursor = result.nextCursor || undefined;
         pageCount++;
 
         logger.info(`Fetched page ${pageCount}: ${result.results.length} users (total: ${allUsers.length})`);
@@ -519,7 +519,7 @@ class NotionService {
         const result = await this.queryProjectsDatabase(filters, cursor, 100);
         allProjects.push(...result.results);
         hasMore = result.hasMore;
-        cursor = result.nextCursor;
+        cursor = result.nextCursor || undefined;
         pageCount++;
 
         logger.info(`Fetched page ${pageCount}: ${result.results.length} projects (total: ${allProjects.length})`);
@@ -554,7 +554,7 @@ class NotionService {
         const result = await this.queryClientsDatabase(cursor, 100);
         allClients.push(...result.results);
         hasMore = result.hasMore;
-        cursor = result.nextCursor;
+        cursor = result.nextCursor || undefined;
         pageCount++;
 
         logger.info(`Fetched page ${pageCount}: ${result.results.length} clients (total: ${allClients.length})`);
@@ -589,7 +589,7 @@ class NotionService {
         const result = await this.queryTeamsDatabase(cursor, 100);
         allTeams.push(...result.results);
         hasMore = result.hasMore;
-        cursor = result.nextCursor;
+        cursor = result.nextCursor || undefined;
         pageCount++;
 
         logger.info(`Fetched page ${pageCount}: ${result.results.length} teams (total: ${allTeams.length})`);
