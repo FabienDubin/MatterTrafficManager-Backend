@@ -99,7 +99,7 @@ export const autoDetectMapping = async (
         'Email': { app: 'email', required: true },
         'Role': { app: 'role', required: true },
         'Actif': { app: 'isActive', required: false },
-        'Téléphone': { app: 'phone', required: false },
+        'Téléphone': { app: 'phoneNumber', required: false },
         'Avatar': { app: 'avatar', required: false },
         'Date de création': { app: 'createdAt', required: false },
         
@@ -115,7 +115,7 @@ export const autoDetectMapping = async (
         'Nom du client': { app: 'clientName', required: true },
         'Contact principal': { app: 'mainContact', required: false },
         'Email de contact': { app: 'contactEmail', required: false },
-        'Téléphone': { app: 'phone', required: false },
+        'Téléphone client': { app: 'clientPhone', required: false },
         'Adresse': { app: 'address', required: false },
         'Site web': { app: 'website', required: false },
         
@@ -136,7 +136,7 @@ export const autoDetectMapping = async (
             notionProperty: propName,
             notionType: (propConfig as any).type,
             isRequired: mapping.required,
-            transformFunction: undefined
+            transformFunction: undefined as any
           });
         } else {
           // Unknown field - still map it but not required
@@ -146,7 +146,7 @@ export const autoDetectMapping = async (
             notionProperty: propName,
             notionType: (propConfig as any).type,
             isRequired: false,
-            transformFunction: undefined
+            transformFunction: undefined as any
           });
         }
       }
@@ -214,9 +214,7 @@ export const getMapping = async (
     const { databaseName } = req.query;
     const environment = process.env.NODE_ENV || 'development';
     
-    const config = await NotionConfigModel.findOne({ environment })
-      .populate('createdBy', 'name email')
-      .populate('updatedBy', 'name email');
+    const config = await NotionConfigModel.findOne({ environment });
     
     if (!config) {
       res.status(404).json({
@@ -349,7 +347,7 @@ export const saveMapping = async (
     };
     
     if (existingMappingIndex >= 0) {
-      changes.previousFieldsCount = config.mappings[existingMappingIndex].fields.length;
+      changes.previousFieldsCount = config.mappings[existingMappingIndex]?.fields.length || 0;
       config.mappings[existingMappingIndex] = newMapping;
     } else {
       config.mappings.push(newMapping);

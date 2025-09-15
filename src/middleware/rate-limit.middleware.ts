@@ -27,7 +27,8 @@ export const rateLimiter = (options: RateLimitOptions) => {
     
     // Clean up expired entries
     Object.keys(store).forEach(k => {
-      if (store[k].resetTime < now) {
+      const entry = store[k];
+      if (entry && entry.resetTime < now) {
         delete store[k];
       }
     });

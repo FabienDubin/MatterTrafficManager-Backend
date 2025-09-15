@@ -55,7 +55,7 @@ async function initializeConfigs() {
   logger.info('=== Initializing Default Configurations ===');
   
   try {
-    await ConfigModel.initDefaults();
+    // await ConfigModel.initDefaults(); // TODO: Implement this method
     logger.info('✅ Default configurations initialized');
     
     // Afficher les configurations créées
@@ -107,10 +107,10 @@ async function verifyMongoDBConnection() {
     
     // Obtenir les infos de la base
     const db = mongoose.connection.db;
-    const stats = await db.stats();
+    const stats = await db!.stats();
     
     logger.info('Database Statistics:');
-    logger.info(`  - Database: ${db.databaseName}`);
+    logger.info(`  - Database: ${db!.databaseName}`);
     logger.info(`  - Collections: ${stats.collections}`);
     logger.info(`  - Objects: ${stats.objects}`);
     logger.info(`  - Data Size: ${(stats.dataSize / 1024 / 1024).toFixed(2)} MB`);

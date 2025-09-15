@@ -5,7 +5,7 @@ import {
   saveMapping,
   previewMapping
 } from '../controllers/notion-mapping.controller';
-import { authenticateToken } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/auth.middleware';
 import { requireAdmin } from '../middleware/admin.middleware';
 
 const router = Router();
@@ -17,7 +17,7 @@ const router = Router();
  */
 router.post(
   '/auto-detect',
-  authenticateToken,
+  authenticate,
   requireAdmin,
   autoDetectMapping
 );
@@ -29,7 +29,7 @@ router.post(
  */
 router.get(
   '/',
-  authenticateToken,
+  authenticate,
   requireAdmin,
   getMapping
 );
@@ -41,7 +41,7 @@ router.get(
  */
 router.post(
   '/',
-  authenticateToken,
+  authenticate,
   requireAdmin,
   saveMapping
 );
@@ -53,7 +53,7 @@ router.post(
  */
 router.post(
   '/preview',
-  authenticateToken,
+  authenticate,
   requireAdmin,
   previewMapping
 );

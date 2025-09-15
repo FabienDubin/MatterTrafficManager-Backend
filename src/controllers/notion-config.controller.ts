@@ -15,9 +15,7 @@ export const getNotionConfig = async (
     const environment = process.env.NODE_ENV || 'development';
     
     let config = await NotionConfigModel.findOne({ environment })
-      .select('+notionToken')
-      .populate('createdBy', 'name email')
-      .populate('updatedBy', 'name email');
+      .select('+notionToken');
     
     if (!config) {
       // Create default configuration if none exists
@@ -38,7 +36,7 @@ export const getNotionConfig = async (
         databases: {
           teams: { id: '268a12bfa99281f886bbd9ffc36be65f', name: 'Teams' },
           users: { id: '268a12bfa99281bf9101ebacbae3e39a', name: 'Users' },
-          clients: { id: '268a12bfa99281fb8566e7917a7f8b8e7', name: 'Clients' },
+          clients: { id: '268a12bfa99281fb8566e7917a7f8b8e', name: 'Clients' },
           projects: { id: '268a12bfa9928105a95fde79cea0f6ff', name: 'Projects' },
           traffic: { id: '268a12bfa99281809af5f6a9d2fccbe3', name: 'Traffic' }
         },
@@ -89,26 +87,28 @@ export const saveNotionConfig = async (
     
     const { notionToken, databases } = req.body;
     
-    // Validate required fields
-    if (!notionToken || !databases) {
+    // At least one field must be provided
+    if (!notionToken && !databases) {
       res.status(400).json({
         success: false,
-        error: 'Missing required fields: notionToken and databases'
+        error: 'At least notionToken or databases must be provided'
       });
       return;
     }
     
-    // Validate database IDs format (UUID v4)
-    const uuidRegex = /^[0-9a-f]{32}$/i;
-    const databaseNames = ['teams', 'users', 'clients', 'projects', 'traffic'];
-    
-    for (const dbName of databaseNames) {
-      if (!databases[dbName]?.id || !uuidRegex.test(databases[dbName].id)) {
-        res.status(400).json({
-          success: false,
-          error: `Invalid database ID format for ${dbName}`
-        });
-        return;
+    // If databases are provided, validate them
+    if (databases) {
+      const uuidRegex = /^[0-9a-f]{32}$/i;
+      const databaseNames = ['teams', 'users', 'clients', 'projects', 'traffic'];
+      
+      for (const dbName of databaseNames) {
+        if (!databases[dbName]?.id || !uuidRegex.test(databases[dbName].id)) {
+          res.status(400).json({
+            success: false,
+            error: `Invalid database ID format for ${dbName}`
+          });
+          return;
+        }
       }
     }
     
@@ -118,25 +118,31 @@ export const saveNotionConfig = async (
       // Track changes for audit log
       const changes: Record<string, any> = {};
       
-      if (config.notionToken !== notionToken) {
-        changes.notionToken = 'Updated';
-      }
-      
-      for (const dbName of databaseNames) {
-        if (config.databases[dbName].id !== databases[dbName].id) {
-          changes[`databases.${dbName}.id`] = {
-            old: config.databases[dbName].id,
-            new: databases[dbName].id
-          };
+      // Update token if provided
+      if (notionToken) {
+        const encryptedToken = (config as any).encryptToken(notionToken);
+        if (config.notionToken !== encryptedToken) {
+          changes.notionToken = 'Updated';
+          config.notionToken = encryptedToken;
         }
       }
       
-      // Encrypt token before saving
-      const encryptedToken = (config as any).encryptToken(notionToken);
+      // Update databases if provided
+      if (databases) {
+        const databaseNames = ['teams', 'users', 'clients', 'projects', 'traffic'];
+        for (const dbName of databaseNames) {
+          const currentDb = (config.databases as any)[dbName];
+          const newDb = (databases as any)[dbName];
+          if (currentDb.id !== newDb.id) {
+            changes[`databases.${dbName}.id`] = {
+              old: currentDb.id,
+              new: newDb.id
+            };
+          }
+        }
+        config.databases = databases;
+      }
       
-      // Update configuration
-      config.notionToken = encryptedToken;
-      config.databases = databases;
       config.updatedBy = userId;
       
       // Add audit log entry
@@ -144,11 +150,19 @@ export const saveNotionConfig = async (
       
       await config.save();
     } else {
-      // Create new configuration
+      // Create new configuration - need at least default databases
+      const defaultDatabases = databases || {
+        teams: { id: '268a12bfa99281f886bbd9ffc36be65f', name: 'Teams' },
+        users: { id: '268a12bfa99281bf9101ebacbae3e39a', name: 'Users' },
+        clients: { id: '268a12bfa99281fb8566e7917a7f8b8e', name: 'Clients' },
+        projects: { id: '268a12bfa9928105a95fde79cea0f6ff', name: 'Projects' },
+        traffic: { id: '268a12bfa99281809af5f6a9d2fccbe3', name: 'Traffic' }
+      };
+      
       const newConfig = new NotionConfigModel({
         environment,
         notionToken: '',
-        databases,
+        databases: defaultDatabases,
         createdBy: userId,
         updatedBy: userId,
         mappings: [],
@@ -156,9 +170,11 @@ export const saveNotionConfig = async (
         autoDetectEnabled: true
       });
       
-      // Encrypt token before saving
-      const encryptedToken = (newConfig as any).encryptToken(notionToken);
-      newConfig.notionToken = encryptedToken;
+      // Encrypt token if provided
+      if (notionToken) {
+        const encryptedToken = (newConfig as any).encryptToken(notionToken);
+        newConfig.notionToken = encryptedToken;
+      }
       
       // Add audit log entry
       (newConfig as any).addAuditEntry(userId, 'CREATE_CONFIG', { action: 'Initial configuration' }, ipAddress);

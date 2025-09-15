@@ -286,7 +286,7 @@ async function createIndexes() {
     // Créer les index pour chaque collection
     for (const config of indexConfigs) {
       logger.info(`\n=== Processing collection: ${config.collection} ===`);
-      const collection = db.collection(config.collection);
+      const collection = db!.collection(config.collection);
 
       // Récupérer les index existants
       const existingIndexes = await collection.listIndexes().toArray();
@@ -335,7 +335,7 @@ async function createIndexes() {
     // Lister tous les index créés par collection
     logger.info('\n=== Current Indexes by Collection ===');
     for (const config of indexConfigs) {
-      const collection = db.collection(config.collection);
+      const collection = db!.collection(config.collection);
       const indexes = await collection.listIndexes().toArray();
       logger.info(`\n${config.collection}: ${indexes.length} indexes`);
       indexes.forEach(idx => {

@@ -132,7 +132,7 @@ const NotionConfigSchema = new Schema<INotionConfig>(
         type: NotionDatabaseSchema,
         required: true,
         default: {
-          id: '268a12bfa99281fb8566e7917a7f8b8e7',
+          id: '268a12bfa99281fb8566e7917a7f8b8e',
           name: 'Clients'
         }
       },
@@ -162,12 +162,12 @@ const NotionConfigSchema = new Schema<INotionConfig>(
     lastAutoDetectDate: { type: Date },
     createdBy: {
       type: Schema.Types.ObjectId,
-      ref: 'Member',
+      ref: 'User',
       required: true
     },
     updatedBy: {
       type: Schema.Types.ObjectId,
-      ref: 'Member',
+      ref: 'User',
       required: true
     },
     version: {
@@ -178,7 +178,7 @@ const NotionConfigSchema = new Schema<INotionConfig>(
       timestamp: { type: Date, default: Date.now },
       userId: { 
         type: Schema.Types.ObjectId, 
-        ref: 'Member',
+        ref: 'User',
         required: true 
       },
       action: { type: String, required: true },
@@ -223,16 +223,27 @@ NotionConfigSchema.methods.addAuditEntry = function(
 };
 
 NotionConfigSchema.methods.getActiveMapping = function(databaseName: string): IDatabaseMapping | undefined {
-  return this.mappings.find(m => m.databaseName === databaseName);
+  return this.mappings.find((m: IDatabaseMapping) => m.databaseName === databaseName);
 };
 
 NotionConfigSchema.methods.encryptToken = function(token: string): string {
   const crypto = require('crypto');
   const algorithm = 'aes-256-ctr';
-  const secretKey = process.env.ENCRYPTION_KEY || 'default-encryption-key-change-in-prod';
+  // Use a proper 32-byte key for AES-256
+  let secretKey;
+  if (process.env.ENCRYPTION_KEY) {
+    // If ENCRYPTION_KEY is a hex string, convert it to buffer
+    secretKey = Buffer.from(process.env.ENCRYPTION_KEY, 'hex');
+    if (secretKey.length !== 32) {
+      // If not 32 bytes, hash it to get proper length
+      secretKey = crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY).digest();
+    }
+  } else {
+    secretKey = crypto.createHash('sha256').update('default-encryption-key-change-in-prod').digest();
+  }
   const iv = crypto.randomBytes(16);
   
-  const cipher = crypto.createCipheriv(algorithm, Buffer.from(secretKey, 'hex'), iv);
+  const cipher = crypto.createCipheriv(algorithm, secretKey, iv);
   const encrypted = Buffer.concat([cipher.update(token), cipher.final()]);
   
   return iv.toString('hex') + ':' + encrypted.toString('hex');
@@ -241,13 +252,24 @@ NotionConfigSchema.methods.encryptToken = function(token: string): string {
 NotionConfigSchema.methods.decryptToken = function(encryptedToken: string): string {
   const crypto = require('crypto');
   const algorithm = 'aes-256-ctr';
-  const secretKey = process.env.ENCRYPTION_KEY || 'default-encryption-key-change-in-prod';
+  // Use the same 32-byte key for AES-256
+  let secretKey;
+  if (process.env.ENCRYPTION_KEY) {
+    // If ENCRYPTION_KEY is a hex string, convert it to buffer
+    secretKey = Buffer.from(process.env.ENCRYPTION_KEY, 'hex');
+    if (secretKey.length !== 32) {
+      // If not 32 bytes, hash it to get proper length
+      secretKey = crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY).digest();
+    }
+  } else {
+    secretKey = crypto.createHash('sha256').update('default-encryption-key-change-in-prod').digest();
+  }
   
   const parts = encryptedToken.split(':');
-  const iv = Buffer.from(parts[0], 'hex');
-  const encryptedText = Buffer.from(parts[1], 'hex');
+  const iv = Buffer.from(parts[0] || '', 'hex');
+  const encryptedText = Buffer.from(parts[1] || '', 'hex');
   
-  const decipher = crypto.createDecipheriv(algorithm, Buffer.from(secretKey, 'hex'), iv);
+  const decipher = crypto.createDecipheriv(algorithm, secretKey, iv);
   const decrypted = Buffer.concat([decipher.update(encryptedText), decipher.final()]);
   
   return decrypted.toString();

@@ -60,9 +60,9 @@ async function previewDataStructure() {
       if (data.results.length > 0) {
         const item = data.results[0];
         logger.info(`\n[${type.toUpperCase()}] Sample:`);
-        logger.info(`  - ID: ${item.id}`);
-        logger.info(`  - Title/Name: ${item.title || item.name}`);
-        logger.info(`  - Properties: ${Object.keys(item).length} fields`);
+        logger.info(`  - ID: ${item!.id}`);
+        logger.info(`  - Title/Name: ${(item as any).title || (item as any).name}`);
+        logger.info(`  - Properties: ${Object.keys(item!).length} fields`);
       } else {
         logger.info(`\n[${type.toUpperCase()}] No data found`);
       }

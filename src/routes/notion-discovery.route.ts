@@ -4,7 +4,7 @@ import {
   validateRelationships,
   getDiscoveredSchemas
 } from '../controllers/notion-discovery.controller';
-import { authenticateToken } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/auth.middleware';
 import { requireAdmin } from '../middleware/admin.middleware';
 
 const router = Router();
@@ -16,7 +16,7 @@ const router = Router();
  */
 router.post(
   '/full',
-  authenticateToken,
+  authenticate,
   requireAdmin,
   runFullDiscovery
 );
@@ -28,7 +28,7 @@ router.post(
  */
 router.post(
   '/validate-relationships',
-  authenticateToken,
+  authenticate,
   requireAdmin,
   validateRelationships
 );
@@ -40,7 +40,7 @@ router.post(
  */
 router.get(
   '/schemas',
-  authenticateToken,
+  authenticate,
   requireAdmin,
   getDiscoveredSchemas
 );

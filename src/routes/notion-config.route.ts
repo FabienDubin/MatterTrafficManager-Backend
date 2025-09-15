@@ -4,7 +4,7 @@ import {
   saveNotionConfig,
   testNotionConnection
 } from '../controllers/notion-config.controller';
-import { authenticateToken } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/auth.middleware';
 import { requireAdmin } from '../middleware/admin.middleware';
 import { rateLimiter } from '../middleware/rate-limit.middleware';
 
@@ -17,7 +17,7 @@ const router = Router();
  */
 router.get(
   '/',
-  authenticateToken,
+  authenticate,
   requireAdmin,
   getNotionConfig
 );
@@ -29,7 +29,7 @@ router.get(
  */
 router.post(
   '/',
-  authenticateToken,
+  authenticate,
   requireAdmin,
   saveNotionConfig
 );
@@ -42,7 +42,7 @@ router.post(
  */
 router.post(
   '/test',
-  authenticateToken,
+  authenticate,
   requireAdmin,
   rateLimiter({ windowMs: 60000, max: 10, message: 'Too many test requests, please try again later.' }),
   testNotionConnection
