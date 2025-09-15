@@ -3,6 +3,7 @@ import healthRouter from './health.route';
 import authRouter from './auth.route';
 import notionRouter from './notion.route';
 import notionConfigRouter from './notion-config.route';
+import notionMappingRouter from './notion-mapping.route';
 
 const router = Router();
 
@@ -21,7 +22,8 @@ router.get('/', (_, res) => {
       auth: '/api/v1/auth',
       notion: '/api/v1/notion',
       admin: {
-        notionConfig: '/api/v1/admin/notion-config'
+        notionConfig: '/api/v1/admin/notion-config',
+        notionMapping: '/api/v1/admin/notion-mapping'
       }
     },
     timestamp: new Date().toISOString()
@@ -39,5 +41,8 @@ router.use('/notion', notionRouter);
 
 // Admin routes - Notion configuration
 router.use('/admin/notion-config', notionConfigRouter);
+
+// Admin routes - Notion mapping
+router.use('/admin/notion-mapping', notionMappingRouter);
 
 export default router;
