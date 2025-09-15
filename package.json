@@ -14,7 +14,10 @@
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write src/**/*.ts",
     "lint-staged": "lint-staged",
-    "seed:admin": "ts-node src/scripts/seed-admin.ts"
+    "seed:admin": "ts-node src/scripts/seed-admin.ts",
+    "db:init": "ts-node src/scripts/init-db.ts",
+    "db:create-indexes": "ts-node src/scripts/create-indexes.ts",
+    "db:seed": "ts-node src/scripts/seed-db.ts"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",

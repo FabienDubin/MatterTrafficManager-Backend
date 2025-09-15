@@ -14,15 +14,18 @@ export interface ITask extends Document {
   assignedMembers: string[]; // Member IDs
   projectId: string;
   clientId?: string;
-  status: "not_started" | "to_be_validated" | "completed";
+  status: "not_started" | "in_progress" | "completed";
   taskType: "task" | "holiday" | "school" | "remote";
   notes?: string;
   billedHours?: number;
   actualHours?: number;
   addToCalendar?: boolean;
   addToClientPlanning?: boolean;
+  googleEventId?: string; // Pour sync Google Calendar
   // Metadata
   lastNotionSync: Date;
+  lastModifiedInNotion?: Date; // Date de dernière modif dans Notion
+  syncedAt?: Date; // Date de dernière sync
   _ttl: Date; // Pour expiration automatique
   createdAt: Date;
   updatedAt: Date;
@@ -76,7 +79,7 @@ const TaskSchema: Schema = new Schema(
     },
     status: {
       type: String,
-      enum: ['not_started', 'to_be_validated', 'completed'],
+      enum: ['not_started', 'in_progress', 'completed'],
       default: 'not_started',
       required: true,
       index: true,
@@ -110,9 +113,21 @@ const TaskSchema: Schema = new Schema(
       type: Boolean,
       default: false,
     },
+    googleEventId: {
+      type: String,
+      sparse: true, // Index sparse pour optimiser les requêtes
+      index: true,
+    },
     lastNotionSync: {
       type: Date,
       required: true,
+      default: Date.now,
+    },
+    lastModifiedInNotion: {
+      type: Date,
+    },
+    syncedAt: {
+      type: Date,
       default: Date.now,
     },
     _ttl: {

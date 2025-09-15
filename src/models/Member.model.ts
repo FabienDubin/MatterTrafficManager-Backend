@@ -8,9 +8,14 @@ export interface IMember extends Document {
   notionId: string; // Unique, indexed
   name: string;
   email: string;
-  teamId: string;
+  teamIds: string[]; // Relation many-to-many avec les équipes
+  teamNames?: string[]; // Dénormalisé pour performance
   role: string[];
+  notionUserId?: string; // Link to Notion user profile
+  managerId?: string; // ID du manager
+  profilePicture?: string; // URL de la photo de profil
   isActive: boolean;
+  syncedAt?: Date; // Date de dernière sync
   createdAt: Date;
   updatedAt: Date;
 }
@@ -43,21 +48,43 @@ const MemberSchema: Schema = new Schema(
       ],
       index: true,
     },
-    teamId: {
+    teamIds: [{
       type: String,
-      required: [true, 'Team ID is required'],
-      index: true,
-    },
+      required: true,
+    }],
+    teamNames: [{
+      type: String,
+    }],
     role: [{
       type: String,
       required: true,
       trim: true,
     }],
+    notionUserId: {
+      type: String,
+      sparse: true,
+      index: true,
+    },
+    managerId: {
+      type: String,
+      index: true,
+    },
+    profilePicture: {
+      type: String,
+      match: [
+        /^https?:\/\/.+/,
+        'Please enter a valid URL'
+      ],
+    },
     isActive: {
       type: Boolean,
       required: true,
       default: true,
       index: true,
+    },
+    syncedAt: {
+      type: Date,
+      default: Date.now,
     },
   },
   {
@@ -66,11 +93,14 @@ const MemberSchema: Schema = new Schema(
   }
 );
 
-// Index composé pour optimiser les requêtes par équipe et statut
-MemberSchema.index({ teamId: 1, isActive: 1 });
+// Index composé pour optimiser les requêtes par équipes et statut
+MemberSchema.index({ teamIds: 1, isActive: 1 });
 
 // Index pour recherche par email
 MemberSchema.index({ email: 1 });
+
+// Index pour recherche par manager
+MemberSchema.index({ managerId: 1 });
 
 /**
  * Méthode statique pour synchronisation depuis Notion
@@ -87,10 +117,10 @@ MemberSchema.statics.upsertFromNotion = async function(notionData: any): Promise
 };
 
 /**
- * Méthode statique pour trouver par équipe
+ * Méthode statique pour trouver par équipes
  */
 MemberSchema.statics.findByTeam = function(teamId: string) {
-  return this.find({ teamId, isActive: true });
+  return this.find({ teamIds: teamId, isActive: true });
 };
 
 /**
