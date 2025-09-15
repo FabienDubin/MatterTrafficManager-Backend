@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { Client } from '@notionhq/client';
 import NotionConfigModel, { IFieldMapping, IDatabaseMapping } from '../models/NotionConfig.model';
+import NotionDiscoveryService from '../services/NotionDiscoveryService';
 import mongoose from 'mongoose';
 
 /**
