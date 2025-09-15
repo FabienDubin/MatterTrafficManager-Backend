@@ -60,7 +60,6 @@ const ClientSchema: Schema = new Schema(
       enum: ['active', 'inactive', 'retainer'],
       default: 'active',
       required: true,
-      index: true,
     },
     emoji: {
       type: String,
@@ -76,7 +75,7 @@ const ClientSchema: Schema = new Schema(
       trim: true,
       lowercase: true,
       match: [
-        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
         'Please enter a valid email address'
       ],
     },
@@ -189,12 +188,20 @@ ClientSchema.statics.findByType = function(type: string) {
 };
 
 /**
+ * Méthode statique pour trouver par statut
+ */
+ClientSchema.statics.findByStatus = function(status: string) {
+  return this.find({ status });
+};
+
+/**
  * Méthode d'instance pour marquer comme inactif
  */
 ClientSchema.methods.deactivate = function(): Promise<IClient> {
   this.status = 'inactive';
   return this.save();
 };
+
 
 /**
  * Middleware pre-save pour validation

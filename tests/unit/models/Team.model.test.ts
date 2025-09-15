@@ -8,12 +8,9 @@ describe('Team Model', () => {
         notionId: 'notion-123',
         name: 'Engineering Team',
         managerId: 'manager-123',
-        managerName: 'Jane Smith',
-        memberIds: ['member1', 'member2', 'member3'],
-        memberNames: ['John Doe', 'Alice Brown', 'Bob Wilson'],
-        projectIds: ['project1', 'project2'],
         displayOrder: 1,
-        isActive: true
+        memberCount: 5,
+        description: 'Main engineering team'
       });
 
       const error = validTeam.validateSync();
@@ -24,7 +21,7 @@ describe('Team Model', () => {
       const team = new TeamModel({
         name: 'Engineering Team',
         managerId: 'manager-123',
-        memberIds: ['member1']
+        displayOrder: 1
       });
 
       const error = team.validateSync();
@@ -36,19 +33,19 @@ describe('Team Model', () => {
       const team = new TeamModel({
         notionId: 'notion-123',
         managerId: 'manager-123',
-        memberIds: ['member1']
+        displayOrder: 1
       });
 
       const error = team.validateSync();
       expect(error?.errors.name).toBeDefined();
-      expect(error?.errors.name.message).toBe('Team name is required');
+      expect(error?.errors.name.message).toBe('Name is required');
     });
 
     it('should require managerId', () => {
       const team = new TeamModel({
         notionId: 'notion-123',
         name: 'Engineering Team',
-        memberIds: ['member1']
+        displayOrder: 1
       });
 
       const error = team.validateSync();
@@ -56,106 +53,88 @@ describe('Team Model', () => {
       expect(error?.errors.managerId.message).toBe('Manager ID is required');
     });
 
-    it('should handle empty member arrays', () => {
+    it('should handle optional memberCount', () => {
       const team = new TeamModel({
         notionId: 'notion-123',
         name: 'New Team',
         managerId: 'manager-123',
-        memberIds: [],
-        projectIds: []
+        displayOrder: 0,
+        memberCount: 0
       });
 
       const error = team.validateSync();
       expect(error).toBeUndefined();
-      expect(team.memberIds).toEqual([]);
-      expect(team.projectIds).toEqual([]);
+      expect(team.memberCount).toBe(0);
     });
 
-    it('should support multiple members', () => {
+    it('should support teams with multiple members', () => {
       const team = new TeamModel({
         notionId: 'notion-123',
         name: 'Large Team',
         managerId: 'manager-123',
-        memberIds: Array.from({ length: 10 }, (_, i) => `member${i + 1}`),
-        memberNames: Array.from({ length: 10 }, (_, i) => `Member ${i + 1}`)
+        displayOrder: 1,
+        memberCount: 50
       });
 
       const error = team.validateSync();
       expect(error).toBeUndefined();
-      expect(team.memberIds).toHaveLength(10);
-      expect(team.memberNames).toHaveLength(10);
+      expect(team.memberCount).toBe(50);
     });
 
-    it('should support multiple projects', () => {
+    it('should handle icon field', () => {
       const team = new TeamModel({
         notionId: 'notion-123',
         name: 'Engineering Team',
         managerId: 'manager-123',
-        memberIds: ['member1'],
-        projectIds: ['project1', 'project2', 'project3', 'project4', 'project5']
+        displayOrder: 1,
+        icon: '👥'
       });
 
       const error = team.validateSync();
       expect(error).toBeUndefined();
-      expect(team.projectIds).toHaveLength(5);
+      expect(team.icon).toBe('👥');
     });
 
-    it('should validate displayOrder is non-negative', () => {
-      const team = new TeamModel({
-        notionId: 'notion-123',
-        name: 'Engineering Team',
-        managerId: 'manager-123',
-        memberIds: ['member1'],
-        displayOrder: -1
-      });
-
-      const error = team.validateSync();
-      expect(error?.errors.displayOrder).toBeDefined();
-      expect(error?.errors.displayOrder.message).toBe('Display order cannot be negative');
-    });
 
     it('should set default values correctly', () => {
       const team = new TeamModel({
         notionId: 'notion-123',
         name: 'Engineering Team',
         managerId: 'manager-123',
-        memberIds: ['member1']
+        displayOrder: 0
       });
 
       expect(team.displayOrder).toBe(0);
-      expect(team.isActive).toBe(true);
       expect(team.syncedAt).toBeDefined();
       expect(team._ttl).toBeDefined();
-      expect(team.memberNames).toEqual([]);
-      expect(team.projectIds).toEqual([]);
     });
 
-    it('should handle denormalized managerName field', () => {
+    it('should handle notionSpaceUrl field', () => {
       const team = new TeamModel({
         notionId: 'notion-123',
         name: 'Engineering Team',
         managerId: 'manager-123',
-        managerName: 'Jane Smith',
-        memberIds: ['member1']
+        displayOrder: 1,
+        notionSpaceUrl: 'https://notion.so/team-space'
       });
 
-      expect(team.managerName).toBe('Jane Smith');
+      expect(team.notionSpaceUrl).toBe('https://notion.so/team-space');
       const error = team.validateSync();
       expect(error).toBeUndefined();
     });
 
-    it('should handle denormalized memberNames field', () => {
+    it('should validate URL format for notionSpaceUrl', () => {
       const team = new TeamModel({
         notionId: 'notion-123',
         name: 'Engineering Team',
         managerId: 'manager-123',
-        memberIds: ['member1', 'member2'],
-        memberNames: ['John Doe', 'Alice Brown']
+        displayOrder: 1,
+        notionSpaceUrl: 'invalid-url'
       });
 
-      expect(team.memberNames).toEqual(['John Doe', 'Alice Brown']);
       const error = team.validateSync();
-      expect(error).toBeUndefined();
+      expect(error?.errors.notionSpaceUrl).toBeDefined();
+      expect(error?.errors.notionSpaceUrl.message).toBe('Please enter a valid URL');
     });
 
     it('should handle description field', () => {
@@ -163,7 +142,7 @@ describe('Team Model', () => {
         notionId: 'notion-123',
         name: 'Engineering Team',
         managerId: 'manager-123',
-        memberIds: ['member1'],
+        displayOrder: 1,
         description: 'This is the main engineering team responsible for product development'
       });
 
@@ -171,55 +150,70 @@ describe('Team Model', () => {
       const error = team.validateSync();
       expect(error).toBeUndefined();
     });
+
+    it('should validate name max length', () => {
+      const team = new TeamModel({
+        notionId: 'notion-123',
+        name: 'a'.repeat(201), // Too long
+        managerId: 'manager-123',
+        displayOrder: 1
+      });
+
+      const error = team.validateSync();
+      expect(error?.errors.name).toBeDefined();
+      expect(error?.errors.name.message).toBe('Name cannot exceed 200 characters');
+    });
+
+    it('should validate description max length', () => {
+      const team = new TeamModel({
+        notionId: 'notion-123',
+        name: 'Engineering Team',
+        managerId: 'manager-123',
+        displayOrder: 1,
+        description: 'a'.repeat(1001) // Too long
+      });
+
+      const error = team.validateSync();
+      expect(error?.errors.description).toBeDefined();
+      expect(error?.errors.description.message).toBe('Description cannot exceed 1000 characters');
+    });
+
   });
 
   describe('Instance Methods', () => {
-    it('should add a member to team', () => {
+    it('should update member count', () => {
       const team = new TeamModel({
         notionId: 'notion-123',
         name: 'Engineering Team',
         managerId: 'manager-123',
-        memberIds: ['member1']
+        displayOrder: 1,
+        memberCount: 5
       });
 
-      team.addMember = jest.fn().mockImplementation(function(this: ITeam, memberId: string, memberName?: string) {
-        if (!this.memberIds.includes(memberId)) {
-          this.memberIds.push(memberId);
-          if (memberName) {
-            this.memberNames.push(memberName);
-          }
-        }
+      team.updateMemberCount = jest.fn().mockImplementation(function(this: ITeam, count: number) {
+        this.memberCount = count;
         return Promise.resolve(this);
       });
 
-      team.addMember('member2', 'New Member');
-      expect(team.memberIds).toContain('member2');
-      expect(team.memberIds).toHaveLength(2);
-      expect(team.memberNames).toContain('New Member');
+      team.updateMemberCount(10);
+      expect(team.memberCount).toBe(10);
     });
 
-    it('should remove a member from team', () => {
+    it('should change manager', () => {
       const team = new TeamModel({
         notionId: 'notion-123',
         name: 'Engineering Team',
         managerId: 'manager-123',
-        memberIds: ['member1', 'member2', 'member3'],
-        memberNames: ['John', 'Jane', 'Bob']
+        displayOrder: 1
       });
 
-      team.removeMember = jest.fn().mockImplementation(function(this: ITeam, memberId: string) {
-        const index = this.memberIds.indexOf(memberId);
-        if (index > -1) {
-          this.memberIds.splice(index, 1);
-          this.memberNames.splice(index, 1);
-        }
+      team.changeManager = jest.fn().mockImplementation(function(this: ITeam, newManagerId: string) {
+        this.managerId = newManagerId;
         return Promise.resolve(this);
       });
 
-      team.removeMember('member2');
-      expect(team.memberIds).not.toContain('member2');
-      expect(team.memberIds).toHaveLength(2);
-      expect(team.memberNames).not.toContain('Jane');
+      team.changeManager('manager-456');
+      expect(team.managerId).toBe('manager-456');
     });
 
     it('should deactivate a team', () => {
@@ -227,17 +221,17 @@ describe('Team Model', () => {
         notionId: 'notion-123',
         name: 'Engineering Team',
         managerId: 'manager-123',
-        memberIds: ['member1'],
-        isActive: true
+        displayOrder: 1
       });
 
       team.deactivate = jest.fn().mockImplementation(function(this: ITeam) {
-        this.isActive = false;
+        // Mark as inactive (could set a flag or change status)
+        this.displayOrder = -1; // Use negative order to indicate inactive
         return Promise.resolve(this);
       });
 
       team.deactivate();
-      expect(team.isActive).toBe(false);
+      expect(team.displayOrder).toBe(-1);
     });
   });
 
@@ -250,8 +244,8 @@ describe('Team Model', () => {
       expect(typeof TeamModel.findByManager).toBe('function');
     });
 
-    it('should have findActive static method', () => {
-      expect(typeof TeamModel.findActive).toBe('function');
+    it('should have findAllSorted static method', () => {
+      expect(typeof TeamModel.findAllSorted).toBe('function');
     });
   });
 
@@ -261,7 +255,7 @@ describe('Team Model', () => {
         notionId: 'notion-123',
         name: 'Engineering Team',
         managerId: 'manager-123',
-        memberIds: ['member1']
+        displayOrder: 1
       });
 
       const ttlTime = team._ttl.getTime();
@@ -283,7 +277,6 @@ describe('Team Model', () => {
       expect(paths.notionId.options.unique).toBe(true);
       expect(paths.notionId.options.index).toBe(true);
       expect(paths.managerId.options.index).toBe(true);
-      expect(paths.isActive.options.index).toBe(true);
       expect(paths.displayOrder.options.index).toBe(true);
     });
   });

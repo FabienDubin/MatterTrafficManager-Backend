@@ -215,9 +215,7 @@ describe('Member Model', () => {
       // Vérifier que les champs indexés sont configurés
       expect(paths.notionId.options.unique).toBe(true);
       expect(paths.notionId.options.index).toBe(true);
-      expect(paths.email.options.index).toBe(true);
       expect(paths.isActive.options.index).toBe(true);
-      expect(paths.managerId.options.index).toBe(true);
       expect(paths.notionUserId.options.sparse).toBe(true);
     });
   });

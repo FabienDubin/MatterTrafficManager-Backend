@@ -43,10 +43,9 @@ const MemberSchema: Schema = new Schema(
       trim: true,
       lowercase: true,
       match: [
-        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
         'Please enter a valid email address'
       ],
-      index: true,
     },
     teamIds: [{
       type: String,
@@ -67,7 +66,6 @@ const MemberSchema: Schema = new Schema(
     },
     managerId: {
       type: String,
-      index: true,
     },
     profilePicture: {
       type: String,

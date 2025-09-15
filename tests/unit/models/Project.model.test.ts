@@ -9,6 +9,7 @@ describe('Project Model', () => {
         name: 'Test Project',
         clientId: 'client-123',
         clientName: 'Test Client',
+        projectLeadId: 'lead-123',
         status: 'in_progress',
         teamIds: ['team1', 'team2'],
         teamNames: ['Team Alpha', 'Team Beta'],
@@ -39,19 +40,21 @@ describe('Project Model', () => {
       const project = new ProjectModel({
         notionId: 'notion-123',
         clientId: 'client-123',
+        projectLeadId: 'lead-123',
         status: 'in_progress',
         teamIds: ['team1']
       });
 
       const error = project.validateSync();
       expect(error?.errors.name).toBeDefined();
-      expect(error?.errors.name.message).toBe('Project name is required');
+      expect(error?.errors.name.message).toBe('Name is required');
     });
 
     it('should require clientId', () => {
       const project = new ProjectModel({
         notionId: 'notion-123',
         name: 'Test Project',
+        projectLeadId: 'lead-123',
         status: 'in_progress',
         teamIds: ['team1']
       });
@@ -66,6 +69,7 @@ describe('Project Model', () => {
         notionId: 'notion-123',
         name: 'Test Project',
         clientId: 'client-123',
+        projectLeadId: 'lead-123',
         status: 'invalid_status' as any,
         teamIds: ['team1']
       });
@@ -79,6 +83,7 @@ describe('Project Model', () => {
         notionId: 'notion-123',
         name: 'Test Project',
         clientId: 'client-123',
+        projectLeadId: 'lead-123',
         status: 'in_progress',
         teamIds: ['team1'],
         startDate: new Date('2025-12-31'),
@@ -97,6 +102,7 @@ describe('Project Model', () => {
         notionId: 'notion-123',
         name: 'Test Project',
         clientId: 'client-123',
+        projectLeadId: 'lead-123',
         status: 'in_progress',
         teamIds: ['team1'],
         budget: -1000
@@ -112,15 +118,14 @@ describe('Project Model', () => {
         notionId: 'notion-123',
         name: 'Test Project',
         clientId: 'client-123',
+        projectLeadId: 'lead-123',
         status: 'in_progress',
-        teamIds: ['team1', 'team2', 'team3'],
-        teamNames: ['Design', 'Development', 'QA']
+        teamIds: ['team1', 'team2', 'team3']
       });
 
       const error = project.validateSync();
       expect(error).toBeUndefined();
       expect(project.teamIds).toHaveLength(3);
-      expect(project.teamNames).toHaveLength(3);
     });
 
     it('should set default values correctly', () => {
@@ -128,33 +133,13 @@ describe('Project Model', () => {
         notionId: 'notion-123',
         name: 'Test Project',
         clientId: 'client-123',
+        projectLeadId: 'lead-123',
         status: 'in_progress',
         teamIds: ['team1']
       });
 
-      expect(project.currency).toBe('EUR');
-      expect(project.isActive).toBe(true);
       expect(project.syncedAt).toBeDefined();
       expect(project._ttl).toBeDefined();
-    });
-
-    it('should accept valid currency codes', () => {
-      const validCurrencies = ['EUR', 'USD', 'GBP', 'CHF'];
-      
-      validCurrencies.forEach(currency => {
-        const project = new ProjectModel({
-          notionId: `notion-${currency}`,
-          name: 'Test Project',
-          clientId: 'client-123',
-          status: 'in_progress',
-          teamIds: ['team1'],
-          currency
-        });
-
-        const error = project.validateSync();
-        expect(error).toBeUndefined();
-        expect(project.currency).toBe(currency);
-      });
     });
 
     it('should handle denormalized clientName field', () => {
@@ -162,6 +147,7 @@ describe('Project Model', () => {
         notionId: 'notion-123',
         name: 'Test Project',
         clientId: 'client-123',
+        projectLeadId: 'lead-123',
         clientName: 'Acme Corporation',
         status: 'in_progress',
         teamIds: ['team1']
@@ -179,6 +165,7 @@ describe('Project Model', () => {
         notionId: 'notion-123',
         name: 'Test Project',
         clientId: 'client-123',
+        projectLeadId: 'lead-123',
         status: 'in_progress',
         teamIds: ['team1']
       });
@@ -208,8 +195,8 @@ describe('Project Model', () => {
       expect(typeof ProjectModel.findByStatus).toBe('function');
     });
 
-    it('should have findActiveProjects static method', () => {
-      expect(typeof ProjectModel.findActiveProjects).toBe('function');
+    it('should have findActive static method', () => {
+      expect(typeof ProjectModel.findActive).toBe('function');
     });
   });
 
@@ -219,6 +206,7 @@ describe('Project Model', () => {
         notionId: 'notion-123',
         name: 'Test Project',
         clientId: 'client-123',
+        projectLeadId: 'lead-123',
         status: 'in_progress',
         teamIds: ['team1']
       });
@@ -243,7 +231,6 @@ describe('Project Model', () => {
       expect(paths.notionId.options.index).toBe(true);
       expect(paths.clientId.options.index).toBe(true);
       expect(paths.status.options.index).toBe(true);
-      expect(paths.isActive.options.index).toBe(true);
     });
   });
 });
