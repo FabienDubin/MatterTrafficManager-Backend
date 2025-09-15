@@ -2,6 +2,7 @@ import { Router } from 'express';
 import healthRouter from './health.route';
 import authRouter from './auth.route';
 import notionRouter from './notion.route';
+import notionConfigRouter from './notion-config.route';
 
 const router = Router();
 
@@ -18,7 +19,10 @@ router.get('/', (_, res) => {
     endpoints: {
       health: '/api/v1/health',
       auth: '/api/v1/auth',
-      notion: '/api/v1/notion'
+      notion: '/api/v1/notion',
+      admin: {
+        notionConfig: '/api/v1/admin/notion-config'
+      }
     },
     timestamp: new Date().toISOString()
   });
@@ -32,5 +36,8 @@ router.use('/auth', authRouter);
 
 // Notion API routes
 router.use('/notion', notionRouter);
+
+// Admin routes - Notion configuration
+router.use('/admin/notion-config', notionConfigRouter);
 
 export default router;
