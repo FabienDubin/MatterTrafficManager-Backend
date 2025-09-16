@@ -37,6 +37,18 @@ export interface IRelationshipValidation {
 export interface INotionConfig extends Document {
   environment: 'development' | 'staging' | 'production';
   notionToken: string;
+  integrationToken: string; // Notion integration token for API access
+  webhookVerificationToken?: string; // Encrypted webhook verification token
+  webhookCaptureMode?: {
+    enabled: boolean;
+    enabledAt: Date;
+    capturedEvent?: {
+      type: string;
+      databaseId?: string;
+      timestamp: Date;
+      hasSignature: boolean;
+    };
+  };
   databases: {
     teams: INotionDatabase;
     users: INotionDatabase;
@@ -44,9 +56,15 @@ export interface INotionConfig extends Document {
     projects: INotionDatabase;
     traffic: INotionDatabase;
   };
+  databaseMappings: Array<{
+    entityType: string;
+    notionDatabaseId: string;
+    notionDatabaseName?: string;
+  }>;
   mappings: IDatabaseMapping[];
   relationships: IRelationshipValidation[];
   autoDetectEnabled: boolean;
+  isActive: boolean; // To mark active config
   lastAutoDetectDate?: Date;
   createdBy: mongoose.Types.ObjectId;
   updatedBy: mongoose.Types.ObjectId;
@@ -58,6 +76,9 @@ export interface INotionConfig extends Document {
     changes: Record<string, any>;
     ipAddress?: string;
   }>;
+  // Methods
+  encryptWebhookToken(token: string): void;
+  decryptWebhookToken(): string | null;
 }
 
 const NotionDatabaseSchema = new Schema<INotionDatabase>({
@@ -111,6 +132,30 @@ const NotionConfigSchema = new Schema<INotionConfig>(
       required: true,
       select: false
     },
+    integrationToken: {
+      type: String,
+      required: true,
+      select: false
+    },
+    webhookVerificationToken: {
+      type: String,
+      select: false // Keep encrypted token hidden by default
+    },
+    webhookCaptureMode: {
+      enabled: { type: Boolean, default: false },
+      enabledAt: { type: Date },
+      capturedEvent: {
+        type: { type: String },
+        databaseId: { type: String },
+        timestamp: { type: Date },
+        hasSignature: { type: Boolean }
+      }
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true
+    },
     databases: {
       teams: {
         type: NotionDatabaseSchema,
@@ -153,6 +198,11 @@ const NotionConfigSchema = new Schema<INotionConfig>(
         }
       }
     },
+    databaseMappings: [{
+      entityType: { type: String, required: true },
+      notionDatabaseId: { type: String, required: true },
+      notionDatabaseName: { type: String }
+    }],
     mappings: [DatabaseMappingSchema],
     relationships: [RelationshipValidationSchema],
     autoDetectEnabled: {
@@ -273,6 +323,26 @@ NotionConfigSchema.methods.decryptToken = function(encryptedToken: string): stri
   const decrypted = Buffer.concat([decipher.update(encryptedText), decipher.final()]);
   
   return decrypted.toString();
+};
+
+// Methods for webhook token encryption/decryption
+NotionConfigSchema.methods.encryptWebhookToken = function(token: string): void {
+  // Use the existing encryptToken method
+  this.webhookVerificationToken = this.encryptToken(token);
+};
+
+NotionConfigSchema.methods.decryptWebhookToken = function(): string | null {
+  if (!this.webhookVerificationToken) {
+    return null;
+  }
+  
+  try {
+    // Use the existing decryptToken method
+    return this.decryptToken(this.webhookVerificationToken);
+  } catch (error) {
+    console.error('Failed to decrypt webhook token:', error);
+    return null;
+  }
 };
 
 export const NotionConfigModel = mongoose.model<INotionConfig>('NotionConfig', NotionConfigSchema);

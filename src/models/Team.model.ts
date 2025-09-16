@@ -22,6 +22,8 @@ export interface ITeam extends Document {
   
   // Metadata
   lastNotionSync: Date;
+  lastModifiedInNotion?: Date;
+  lastWebhookUpdate?: Date;
   syncedAt?: Date;
   _ttl: Date; // Pour expiration automatique
   createdAt: Date;
