@@ -5,7 +5,8 @@ import notionRouter from './notion.route';
 import notionConfigRouter from './notion-config.route';
 import notionMappingRouter from './notion-mapping.route';
 import notionDiscoveryRouter from './notion-discovery.route';
-import webhookRouter from './webhook.route';
+// TODO: Enable webhook routes after fixing bull dependency
+// import webhookRouter from './webhook.route';
 
 const router = Router();
 
@@ -51,7 +52,8 @@ router.use('/admin/notion-mapping', notionMappingRouter);
 // Admin routes - Notion discovery
 router.use('/admin/notion-discovery', notionDiscoveryRouter);
 
+// TODO: Enable webhook routes after fixing bull dependency
 // Webhook routes (no auth middleware here - handled internally)
-router.use('/', webhookRouter);
+// router.use('/', webhookRouter);
 
 export default router;

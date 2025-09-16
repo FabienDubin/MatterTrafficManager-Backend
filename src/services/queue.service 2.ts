@@ -166,7 +166,7 @@ export class QueueService {
       console.warn(`⚠️ Job ${job.id} stalled`);
     });
 
-    this.syncQueue.on('error', (error: Error) => {
+    this.syncQueue.on('error', (error) => {
       console.error('❌ Queue error:', error);
     });
 
