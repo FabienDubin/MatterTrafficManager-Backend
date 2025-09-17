@@ -33,7 +33,7 @@ export const autoDetectMapping = async (
     }
     
     const environment = process.env.NODE_ENV || 'development';
-    const config = await NotionConfigModel.findOne({ environment }).select('+notionToken');
+    const config = await NotionConfigModel.findOne({ environment }).select('+integrationToken');
     
     if (!config) {
       res.status(400).json({
@@ -46,8 +46,8 @@ export const autoDetectMapping = async (
     // Decrypt token or use environment variable as fallback
     let decryptedToken: string;
     try {
-      if (config.notionToken) {
-        decryptedToken = (config as any).decryptToken(config.notionToken);
+      if (config.integrationToken) {
+        decryptedToken = (config as any).decryptToken(config.integrationToken);
       } else if (process.env.NOTION_TOKEN) {
         decryptedToken = process.env.NOTION_TOKEN;
       } else {
@@ -73,7 +73,7 @@ export const autoDetectMapping = async (
     
     try {
       // Retrieve database schema
-      const database = await notion.databases.retrieve({
+      const database: any = await notion.databases.retrieve({
         database_id: databaseId
       });
       
@@ -396,7 +396,7 @@ export const previewMapping = async (
     }
     
     const environment = process.env.NODE_ENV || 'development';
-    const config = await NotionConfigModel.findOne({ environment }).select('+notionToken');
+    const config = await NotionConfigModel.findOne({ environment }).select('+integrationToken');
     
     if (!config) {
       res.status(404).json({
@@ -419,8 +419,8 @@ export const previewMapping = async (
     // Decrypt token
     let decryptedToken: string;
     try {
-      if (config.notionToken) {
-        decryptedToken = (config as any).decryptToken(config.notionToken);
+      if (config.integrationToken) {
+        decryptedToken = (config as any).decryptToken(config.integrationToken);
       } else if (process.env.NOTION_TOKEN) {
         decryptedToken = process.env.NOTION_TOKEN;
       } else {
@@ -446,8 +446,8 @@ export const previewMapping = async (
     
     try {
       // Fetch sample data
-      const response = await notion.databases.query({
-        database_id: databaseId,
+      const response: any = await notion.dataSources.query({
+        data_source_id: databaseId,
         page_size: Math.min(limit, 10)
       });
       

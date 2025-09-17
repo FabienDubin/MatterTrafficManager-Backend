@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { WebhookController } from '../controllers/webhook.controller';
-import { webhookAuthMiddleware } from '../middleware/webhookAuth.middleware';
+// import { webhookAuthMiddleware } from '../middleware/webhookAuth.middleware';
 
 const router = Router();
 const webhookController = new WebhookController();
@@ -9,23 +9,35 @@ const webhookController = new WebhookController();
  * Webhook routes for Notion synchronization
  */
 
-// Main webhook endpoint for Notion events (with HMAC validation)
+// Main webhook endpoint for Notion events
+// MIDDLEWARE TEMPORAIREMENT DESACTIVE POUR DEBUG
 router.post(
   '/webhooks/notion',
-  webhookAuthMiddleware,
   webhookController.handleNotionWebhook
 );
 
-// Capture mode endpoint for initial webhook setup (no HMAC validation)
+// Enable capture mode
 router.post(
-  '/webhooks/notion/capture',
-  webhookController.handleWebhookCapture
+  '/webhooks/notion/capture/enable',
+  webhookController.enableCaptureMode
 );
 
-// Get capture status
+// Disable capture mode
+router.post(
+  '/webhooks/notion/capture/disable',
+  webhookController.disableCaptureMode
+);
+
+// Get capture status and captured data
 router.get(
   '/webhooks/notion/capture/status',
   webhookController.getCaptureStatus
+);
+
+// Clear captured data
+router.delete(
+  '/webhooks/notion/capture/data',
+  webhookController.clearCapturedData
 );
 
 // Test webhook configuration

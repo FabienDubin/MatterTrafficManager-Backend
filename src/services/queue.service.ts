@@ -1,33 +1,33 @@
-import Queue, { Job } from 'bull';
+// Queue service with in-memory queue (no Redis dependency)
 import { SyncService } from './sync.service';
+import logger from '../config/logger.config';
+
+interface QueueJob {
+  id: string;
+  type: string;
+  data: any;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  attempts: number;
+  createdAt: Date;
+  processedAt?: Date;
+  completedAt?: Date;
+  error?: string;
+}
 
 /**
  * Queue service for async webhook processing
- * Uses MongoDB instead of Redis via bull-mongo
+ * Uses in-memory queue instead of Redis
  */
 export class QueueService {
-  private syncQueue: Queue.Queue;
   private syncService: SyncService;
+  private jobs: Map<string, QueueJob> = new Map();
+  private isProcessing = false;
+  private processingInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    // Initialize queue with MongoDB connection
-    const mongoUri = process.env.MONGO_URI || 'mongodb://mongodb:27017/matter-traffic';
-    
-    this.syncQueue = new Queue('notion-sync', mongoUri, {
-      defaultJobOptions: {
-        attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 1000, // 1s, 2s, 4s...
-        },
-        removeOnComplete: true,
-        removeOnFail: false,
-      },
-    });
-
     this.syncService = new SyncService();
-    this.setupQueueProcessors();
-    this.setupQueueEvents();
+    this.setupProcessing();
+    logger.info('✅ Queue service initialized (in-memory)');
   }
 
   /**
@@ -41,17 +41,18 @@ export class QueueService {
     eventData: any;
     receivedAt: Date;
   }): Promise<void> {
-    try {
-      const job = await this.syncQueue.add('process-webhook', data, {
-        priority: this.getPriority(data.entityType),
-        delay: 0, // Process immediately
-      });
+    const jobId = this.generateJobId();
+    const job: QueueJob = {
+      id: jobId,
+      type: 'process-webhook',
+      data,
+      status: 'pending',
+      attempts: 0,
+      createdAt: new Date(),
+    };
 
-      console.log(`📋 Job ${job.id} added to queue for ${data.entityType}`);
-    } catch (error) {
-      console.error('❌ Error adding job to queue:', error);
-      throw error;
-    }
+    this.jobs.set(jobId, job);
+    logger.info(`📋 Job ${jobId} added to queue for ${data.entityType}`);
   }
 
   /**
@@ -65,58 +66,88 @@ export class QueueService {
       delay?: number;
       attempts?: number;
     }
-  ): Promise<void> {
-    try {
-      const job = await this.syncQueue.add(jobType, data, {
-        priority: options?.priority || 5,
-        delay: options?.delay || 0,
-        attempts: options?.attempts || 3,
-      });
+  ): Promise<any> {
+    const jobId = this.generateJobId();
+    const job: QueueJob = {
+      id: jobId,
+      type: jobType,
+      data,
+      status: 'pending',
+      attempts: 0,
+      createdAt: new Date(),
+    };
 
-      console.log(`📋 Job ${job.id} of type '${jobType}' added to queue`);
+    this.jobs.set(jobId, job);
+    logger.info(`📋 Job ${jobId} of type '${jobType}' added to queue`);
+    return job;
+  }
+
+  /**
+   * Setup processing interval
+   */
+  private setupProcessing(): void {
+    // Process jobs every second
+    this.processingInterval = setInterval(() => {
+      this.processNextJob();
+    }, 1000);
+  }
+
+  /**
+   * Process next pending job
+   */
+  private async processNextJob(): Promise<void> {
+    if (this.isProcessing) return;
+
+    const pendingJob = Array.from(this.jobs.values())
+      .find(job => job.status === 'pending');
+
+    if (!pendingJob) return;
+
+    this.isProcessing = true;
+    pendingJob.status = 'processing';
+    pendingJob.processedAt = new Date();
+    pendingJob.attempts++;
+
+    try {
+      await this.processJob(pendingJob);
+      pendingJob.status = 'completed';
+      pendingJob.completedAt = new Date();
+      logger.info(`✅ Job ${pendingJob.id} completed`);
     } catch (error) {
-      console.error(`❌ Error adding ${jobType} job to queue:`, error);
-      throw error;
+      logger.error(`❌ Job ${pendingJob.id} failed:`, error);
+      pendingJob.error = (error as Error).message;
+      
+      if (pendingJob.attempts < 3) {
+        pendingJob.status = 'pending';
+        logger.info(`🔄 Retrying job ${pendingJob.id} (attempt ${pendingJob.attempts}/3)`);
+      } else {
+        pendingJob.status = 'failed';
+        await this.logSyncFailure(pendingJob);
+      }
+    } finally {
+      this.isProcessing = false;
     }
   }
 
   /**
-   * Setup queue processors
+   * Process a specific job
    */
-  private setupQueueProcessors(): void {
-    // Process sync jobs
-    this.syncQueue.process('sync', async (job: Job) => {
-      const { entityType, pageId, syncMethod } = job.data;
-      
-      console.log(`🔄 Processing sync job for ${entityType} page ${pageId}`);
-      
-      try {
+  private async processJob(job: QueueJob): Promise<void> {
+    const { type, data } = job;
+
+    logger.info(`🔄 Processing ${type} job ${job.id}`);
+
+    switch (type) {
+      case 'sync': {
+        const { entityType, pageId, syncMethod } = data;
         const { notionSyncService } = await import('./notionSync.service');
         await notionSyncService.syncPage(entityType, pageId, syncMethod);
-      } catch (error) {
-        console.error(`❌ Failed to sync ${entityType} page ${pageId}:`, error);
-        throw error;
+        break;
       }
-    });
 
-    // Process denormalization jobs
-    this.syncQueue.process('denormalization', async (job: Job) => {
-      const { entityType } = job.data;
-      
-      console.log(`🔄 Processing denormalization for ${entityType}`);
-      
-      // TODO: Implement denormalization logic in Task 4
-      console.log(`✅ Denormalization completed for ${entityType}`);
-    });
-
-    // Process webhook events
-    this.syncQueue.process('process-webhook', async (job: Job) => {
-      const { entityType, eventType, eventData, webhookEventId } = job.data;
-
-      console.log(`🔄 Processing webhook job ${job.id} for ${entityType}`);
-
-      try {
-        // Process based on event type
+      case 'process-webhook': {
+        const { entityType, eventType, eventData, webhookEventId } = data;
+        
         switch (eventType) {
           case 'page.created':
           case 'page.updated':
@@ -129,77 +160,55 @@ export class QueueService {
           
           case 'data_source.content_updated':
           case 'data_source.schema_updated':
-            // Trigger a full sync for the affected database
             await this.syncService.syncFromPolling(entityType);
             break;
           
           default:
-            console.warn(`⚠️ Unknown event type: ${eventType}`);
+            logger.warn(`⚠️ Unknown event type: ${eventType}`);
         }
-
-        console.log(`✅ Job ${job.id} completed successfully`);
-        return { success: true, entityType, eventType };
-      } catch (error) {
-        console.error(`❌ Job ${job.id} failed:`, error);
-        throw error;
+        break;
       }
-    });
+
+      case 'denormalization': {
+        const { entityType } = data;
+        logger.info(`🔄 Processing denormalization for ${entityType}`);
+        // TODO: Implement denormalization logic
+        break;
+      }
+
+      default:
+        logger.warn(`⚠️ Unknown job type: ${type}`);
+    }
   }
 
   /**
-   * Setup queue event listeners
+   * Generate unique job ID
    */
-  private setupQueueEvents(): void {
-    this.syncQueue.on('completed', (job: Job, result: any) => {
-      console.log(`✅ Job ${job.id} completed:`, result);
-    });
-
-    this.syncQueue.on('failed', (job: Job, err: Error) => {
-      console.error(`❌ Job ${job.id} failed:`, err);
-      
-      // Log failure
-      const { entityType, databaseId, webhookEventId } = job.data;
-      this.logSyncFailure(entityType, databaseId, webhookEventId, err);
-    });
-
-    this.syncQueue.on('stalled', (job: Job) => {
-      console.warn(`⚠️ Job ${job.id} stalled`);
-    });
-
-    this.syncQueue.on('error', (error: Error) => {
-      console.error('❌ Queue error:', error);
-    });
-
-    console.log('✅ Queue service initialized');
+  private generateJobId(): string {
+    return `job_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   }
 
   /**
    * Get priority based on entity type
    */
   private getPriority(entityType: string): number {
-    // Higher priority = processed first
     const priorities: Record<string, number> = {
-      'Task': 10,     // Highest priority (most dynamic)
+      'Task': 10,
       'Project': 8,
       'Client': 6,
       'Member': 4,
-      'Team': 2,      // Lowest priority (most static)
+      'Team': 2,
     };
-
     return priorities[entityType] || 5;
   }
 
   /**
    * Log sync failure
    */
-  private async logSyncFailure(
-    entityType: string,
-    databaseId: string,
-    webhookEventId: string | undefined,
-    error: Error
-  ): Promise<void> {
+  private async logSyncFailure(job: QueueJob): Promise<void> {
     try {
       const { SyncLogModel } = await import('../models/SyncLog.model');
+      const { entityType, databaseId, webhookEventId } = job.data;
       
       await SyncLogModel.create({
         entityType,
@@ -209,13 +218,13 @@ export class QueueService {
         webhookEventId,
         itemsProcessed: 0,
         itemsFailed: 1,
-        startTime: new Date(),
+        startTime: job.processedAt,
         endTime: new Date(),
-        duration: 0,
-        errors: [error.message],
+        duration: Date.now() - (job.processedAt?.getTime() || 0),
+        syncErrors: [job.error || 'Unknown error'],
       });
     } catch (logError) {
-      console.error('Failed to log sync failure:', logError);
+      logger.error('Failed to log sync failure:', logError);
     }
   }
 
@@ -230,29 +239,15 @@ export class QueueService {
     delayed: number;
     paused: boolean;
   }> {
-    const [
-      waiting,
-      active,
-      completed,
-      failed,
-      delayed,
-      paused,
-    ] = await Promise.all([
-      this.syncQueue.getWaitingCount(),
-      this.syncQueue.getActiveCount(),
-      this.syncQueue.getCompletedCount(),
-      this.syncQueue.getFailedCount(),
-      this.syncQueue.getDelayedCount(),
-      this.syncQueue.isPaused(),
-    ]);
-
+    const jobs = Array.from(this.jobs.values());
+    
     return {
-      waiting,
-      active,
-      completed,
-      failed,
-      delayed,
-      paused,
+      waiting: jobs.filter(j => j.status === 'pending').length,
+      active: jobs.filter(j => j.status === 'processing').length,
+      completed: jobs.filter(j => j.status === 'completed').length,
+      failed: jobs.filter(j => j.status === 'failed').length,
+      delayed: 0,
+      paused: false,
     };
   }
 
@@ -260,25 +255,47 @@ export class QueueService {
    * Pause queue processing
    */
   async pauseQueue(): Promise<void> {
-    await this.syncQueue.pause();
-    console.log('⏸️ Queue paused');
+    if (this.processingInterval) {
+      clearInterval(this.processingInterval);
+      this.processingInterval = null;
+    }
+    logger.info('⏸️ Queue paused');
   }
 
   /**
    * Resume queue processing
    */
   async resumeQueue(): Promise<void> {
-    await this.syncQueue.resume();
-    console.log('▶️ Queue resumed');
+    if (!this.processingInterval) {
+      this.setupProcessing();
+    }
+    logger.info('▶️ Queue resumed');
   }
 
   /**
    * Clean old jobs
    */
   async cleanQueue(): Promise<void> {
-    const grace = 1000; // Keep last 1000 jobs
-    await this.syncQueue.clean(grace);
-    console.log('🧹 Queue cleaned');
+    const oneHourAgo = new Date(Date.now() - 3600000);
+    let cleaned = 0;
+
+    for (const [id, job] of this.jobs) {
+      if (job.status === 'completed' || job.status === 'failed') {
+        if (job.completedAt && job.completedAt < oneHourAgo) {
+          this.jobs.delete(id);
+          cleaned++;
+        }
+      }
+    }
+
+    logger.info(`🧹 Queue cleaned: ${cleaned} jobs removed`);
+  }
+
+  /**
+   * Get queue status (for monitoring)
+   */
+  async getStatus(): Promise<any> {
+    return this.getQueueStats();
   }
 }
 

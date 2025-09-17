@@ -51,9 +51,9 @@ class NotionService {
         queryParams.start_cursor = cursor;
       }
       
-      const response = await retryWithBackoff(
+      const response: any = await retryWithBackoff(
         () => throttledNotionCall(
-          () => notion.databases.query(queryParams),
+          () => (notion as any).databases.query(queryParams),
           'queryTrafficDatabase'
         ),
         3,
@@ -94,9 +94,9 @@ class NotionService {
         queryParams.start_cursor = cursor;
       }
       
-      const response = await retryWithBackoff(
+      const response: any = await retryWithBackoff(
         () => throttledNotionCall(
-          () => notion.databases.query(queryParams),
+          () => (notion as any).databases.query(queryParams),
           'queryUsersDatabase'
         )
       );
@@ -138,9 +138,9 @@ class NotionService {
         };
       }
 
-      const response = await retryWithBackoff(
+      const response: any = await retryWithBackoff(
         () => throttledNotionCall(
-          () => notion.databases.query(queryParams),
+          () => (notion as any).databases.query(queryParams),
           'queryProjectsDatabase'
         )
       );
@@ -172,9 +172,9 @@ class NotionService {
         queryParams.start_cursor = cursor;
       }
       
-      const response = await retryWithBackoff(
+      const response: any = await retryWithBackoff(
         () => throttledNotionCall(
-          () => notion.databases.query(queryParams),
+          () => (notion as any).databases.query(queryParams),
           'queryClientsDatabase'
         )
       );
@@ -206,9 +206,9 @@ class NotionService {
         queryParams.start_cursor = cursor;
       }
       
-      const response = await retryWithBackoff(
+      const response: any = await retryWithBackoff(
         () => throttledNotionCall(
-          () => notion.databases.query(queryParams),
+          () => (notion as any).databases.query(queryParams),
           'queryTeamsDatabase'
         )
       );
@@ -405,9 +405,9 @@ class NotionService {
           : { and: filterConditions };
       }
 
-      const response = await retryWithBackoff(
+      const response: any = await retryWithBackoff(
         () => throttledNotionCall(
-          () => notion.databases.query(queryParams),
+          () => (notion as any).databases.query(queryParams),
           'queryTasksWithFilters'
         )
       );
@@ -632,8 +632,8 @@ class NotionService {
 
     for (const db of databases) {
       try {
-        const response = await throttledNotionCall(
-          () => notion.databases.query({
+        const response: any = await throttledNotionCall(
+          () => (notion as any).databases.query({
             database_id: db.id,
             page_size: 1
           }),
@@ -664,6 +664,85 @@ class NotionService {
     }
 
     return results;
+  }
+  /**
+   * Get a task by ID
+   */
+  async getTaskById(pageId: string): Promise<any> {
+    try {
+      const page = await throttledNotionCall(
+        () => notion.pages.retrieve({ page_id: pageId }),
+        `getTaskById-${pageId}`
+      );
+      return page;
+    } catch (error) {
+      logger.error(`Failed to get task ${pageId}`, { error });
+      throw NotionAPIError.fromError(error);
+    }
+  }
+
+  /**
+   * Get a project by ID
+   */
+  async getProjectById(pageId: string): Promise<any> {
+    try {
+      const page = await throttledNotionCall(
+        () => notion.pages.retrieve({ page_id: pageId }),
+        `getProjectById-${pageId}`
+      );
+      return page;
+    } catch (error) {
+      logger.error(`Failed to get project ${pageId}`, { error });
+      throw NotionAPIError.fromError(error);
+    }
+  }
+
+  /**
+   * Get a member by ID
+   */
+  async getMemberById(pageId: string): Promise<any> {
+    try {
+      const page = await throttledNotionCall(
+        () => notion.pages.retrieve({ page_id: pageId }),
+        `getMemberById-${pageId}`
+      );
+      return page;
+    } catch (error) {
+      logger.error(`Failed to get member ${pageId}`, { error });
+      throw NotionAPIError.fromError(error);
+    }
+  }
+
+  /**
+   * Get a team by ID
+   */
+  async getTeamById(pageId: string): Promise<any> {
+    try {
+      const page = await throttledNotionCall(
+        () => notion.pages.retrieve({ page_id: pageId }),
+        `getTeamById-${pageId}`
+      );
+      return page;
+    } catch (error) {
+      logger.error(`Failed to get team ${pageId}`, { error });
+      throw NotionAPIError.fromError(error);
+    }
+  }
+
+  /**
+   * Get a client by ID
+   */
+  async getClientById(pageId: string): Promise<any> {
+    try {
+      const page = await throttledNotionCall(
+        () => notion.pages.retrieve({ page_id: pageId }),
+        `getClientById-${pageId}`
+      );
+      return page;
+    } catch (error) {
+      logger.error(`Failed to get client ${pageId}`, { error });
+      throw NotionAPIError.fromError(error);
+    }
   }
 }
 

@@ -38,7 +38,7 @@ export class NotionDiscoveryService {
     const databaseId = this.config.databases[dbKey].id;
     
     try {
-      const database = await this.notion.databases.retrieve({
+      const database: any = await this.notion.databases.retrieve({
         database_id: databaseId
       });
       
@@ -102,18 +102,18 @@ export class NotionDiscoveryService {
     
     try {
       // Get sample data from source database
-      const sourceData = await this.notion.databases.query({
-        database_id: fromDatabaseId,
+      const sourceData: any = await this.notion.dataSources.query({
+        data_source_id: fromDatabaseId,
         page_size: 100
       });
       
       // Get all IDs from target database
-      const targetData = await this.notion.databases.query({
-        database_id: toDatabaseId,
+      const targetData: any = await this.notion.dataSources.query({
+        data_source_id: toDatabaseId,
         page_size: 100
       });
       
-      const targetIds = new Set(targetData.results.map(page => page.id));
+      const targetIds = new Set(targetData.results.map((page: any) => page.id));
       
       // Check references
       let totalReferences = 0;

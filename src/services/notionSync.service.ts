@@ -16,6 +16,7 @@ import logger from '../config/logger.config';
  */
 export class NotionSyncService {
   private notionClient: Client | null = null;
+  private client: Client | null = null; // Alias for compatibility
 
   /**
    * Initialize Notion client with config
@@ -28,9 +29,23 @@ export class NotionSyncService {
         throw new Error('No active Notion configuration found');
       }
 
+      if (!config.integrationToken) {
+        throw new Error('No integration token found in configuration');
+      }
+
+      // Decrypt the token
+      let token: string;
+      try {
+        token = (config as any).decryptToken(config.integrationToken);
+      } catch (decryptError) {
+        logger.error('Failed to decrypt integration token:', decryptError);
+        throw new Error('Failed to decrypt integration token');
+      }
+
       this.notionClient = new Client({
-        auth: config.integrationToken,
+        auth: token,
       });
+      this.client = this.notionClient; // Set alias
 
       logger.info('✅ Notion client initialized');
     } catch (error) {
@@ -51,6 +66,7 @@ export class NotionSyncService {
       throw new Error('Notion client not initialized');
     }
 
+    this.client = this.notionClient; // Update alias
     return this.notionClient;
   }
 
@@ -199,8 +215,8 @@ export class NotionSyncService {
           queryParams.start_cursor = cursor;
         }
         
-        const response = await throttledNotionCall(
-          () => client.databases.query(queryParams),
+        const response: any = await throttledNotionCall(
+          () => (client as any).databases.query(queryParams),
           `query-database-${mapping.notionDatabaseId}`
         );
 
@@ -297,36 +313,24 @@ export class NotionSyncService {
    * Save page to MongoDB based on entity type
    */
   private async savePageToMongoDB(entityType: string, page: any): Promise<void> {
-    const updateData = {
-      notionId: page.id,
-      lastNotionSync: new Date(),
-      lastWebhookUpdate: new Date(),
-      _ttl: this.calculateTTL(entityType),
-      // Raw Notion properties will be mapped in Task 4
-      notionProperties: page.properties,
-    };
-
-    const options = {
-      upsert: true,
-      new: true,
-      runValidators: true,
-    };
-
+    const notionMappingService = (await import('./notionMapping.service')).default;
+    
+    // Use the new mapping service to handle the conversion and saving
     switch (entityType) {
       case 'Task':
-        await TaskModel.findOneAndUpdate({ notionId: page.id }, updateData, options);
+        await notionMappingService.mapTaskToMongoDB(page.id);
         break;
       case 'Project':
-        await ProjectModel.findOneAndUpdate({ notionId: page.id }, updateData, options);
+        await notionMappingService.mapProjectToMongoDB(page.id);
         break;
       case 'Member':
-        await MemberModel.findOneAndUpdate({ notionId: page.id }, updateData, options);
+        await notionMappingService.mapMemberToMongoDB(page.id);
         break;
       case 'Team':
-        await TeamModel.findOneAndUpdate({ notionId: page.id }, updateData, options);
+        await notionMappingService.mapTeamToMongoDB(page.id);
         break;
       case 'Client':
-        await ClientModel.findOneAndUpdate({ notionId: page.id }, updateData, options);
+        await notionMappingService.mapClientToMongoDB(page.id);
         break;
       default:
         throw new Error(`Unknown entity type: ${entityType}`);
@@ -347,6 +351,44 @@ export class NotionSyncService {
 
     const ttlSeconds = ttlMap[entityType] || 86400; // Default 24 hours
     return new Date(Date.now() + ttlSeconds * 1000);
+  }
+
+  /**
+   * Fetch all pages for an entity type (used by reconciliation job)
+   */
+  async fetchAllPagesForEntity(entityType: string): Promise<any[]> {
+    const { NotionMappingModel } = await import('../models/NotionMapping.model');
+    const mapping = await NotionMappingModel.findOne({ entityType, isActive: true });
+    if (!mapping) {
+      throw new Error(`No active mapping found for ${entityType}`);
+    }
+
+    const allPages: any[] = [];
+    let hasMore = true;
+    let cursor: string | undefined;
+
+    while (hasMore) {
+      const queryParams: any = {
+        database_id: mapping.notionDatabaseId,
+        page_size: 100
+      };
+      
+      if (cursor) {
+        queryParams.start_cursor = cursor;
+      }
+      
+      const client = await this.getClient();
+      const response: any = await throttledNotionCall(
+        () => (client as any).databases.query(queryParams),
+        `fetchAllPages-${mapping.notionDatabaseId}`
+      );
+
+      allPages.push(...response.results);
+      hasMore = response.has_more;
+      cursor = response.next_cursor || undefined;
+    }
+
+    return allPages;
   }
 
   /**

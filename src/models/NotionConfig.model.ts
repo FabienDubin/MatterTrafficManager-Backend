@@ -36,7 +36,6 @@ export interface IRelationshipValidation {
 
 export interface INotionConfig extends Document {
   environment: 'development' | 'staging' | 'production';
-  notionToken: string;
   integrationToken: string; // Notion integration token for API access
   webhookVerificationToken?: string; // Encrypted webhook verification token
   webhookCaptureMode?: {
@@ -47,6 +46,16 @@ export interface INotionConfig extends Document {
       databaseId?: string;
       timestamp: Date;
       hasSignature: boolean;
+    };
+    capturedRequest?: {
+      headers: any;
+      body: any;
+      method: string;
+      url: string;
+      timestamp: Date;
+      signature?: string;
+      detectedSecret?: string;
+      secretLocation?: string;
     };
   };
   databases: {
@@ -127,14 +136,10 @@ const NotionConfigSchema = new Schema<INotionConfig>(
       default: 'development',
       required: true
     },
-    notionToken: {
-      type: String,
-      required: true,
-      select: false
-    },
     integrationToken: {
       type: String,
-      required: true,
+      required: false,
+      default: '',
       select: false
     },
     webhookVerificationToken: {
@@ -149,6 +154,16 @@ const NotionConfigSchema = new Schema<INotionConfig>(
         databaseId: { type: String },
         timestamp: { type: Date },
         hasSignature: { type: Boolean }
+      },
+      capturedRequest: {
+        headers: { type: Schema.Types.Mixed },
+        body: { type: Schema.Types.Mixed },
+        method: { type: String },
+        url: { type: String },
+        timestamp: { type: Date },
+        signature: { type: String },
+        detectedSecret: { type: String },
+        secretLocation: { type: String }
       }
     },
     isActive: {
