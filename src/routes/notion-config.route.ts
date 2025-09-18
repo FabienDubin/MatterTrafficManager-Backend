@@ -2,9 +2,7 @@ import { Router } from 'express';
 import {
   getNotionConfig,
   saveNotionConfig,
-  testNotionConnection,
-  updateWebhookToken,
-  removeWebhookToken
+  testNotionConnection
 } from '../controllers/notion-config.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { requireAdmin } from '../middleware/admin.middleware';
@@ -48,30 +46,6 @@ router.post(
   requireAdmin,
   rateLimiter({ windowMs: 60000, max: 10, message: 'Too many test requests, please try again later.' }),
   testNotionConnection
-);
-
-/**
- * @route   POST /api/v1/admin/notion-config/webhook-token
- * @desc    Update webhook verification token
- * @access  Admin only
- */
-router.post(
-  '/webhook-token',
-  authenticate,
-  requireAdmin,
-  updateWebhookToken
-);
-
-/**
- * @route   DELETE /api/v1/admin/notion-config/webhook-token
- * @desc    Remove webhook verification token
- * @access  Admin only
- */
-router.delete(
-  '/webhook-token',
-  authenticate,
-  requireAdmin,
-  removeWebhookToken
 );
 
 export default router;

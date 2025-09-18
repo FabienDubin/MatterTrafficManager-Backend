@@ -1,18 +1,6 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 /**
- * Static methods interface
- */
-interface ISyncSettingsModel extends Model<ISyncSettings> {
-  getOrCreate(entityType: string): Promise<ISyncSettings>;
-  updateTTL(entityType: string, ttlSeconds: number): Promise<ISyncSettings>;
-  isCircuitBreakerOpen(entityType: string): Promise<boolean>;
-  tripCircuitBreaker(entityType: string): Promise<void>;
-  resetCircuitBreaker(entityType: string): Promise<void>;
-  getAllActive(): Promise<ISyncSettings[]>;
-}
-
-/**
  * Interface for sync configuration per entity type
  */
 export interface ISyncSettings extends Document {
@@ -40,6 +28,18 @@ export interface ISyncSettings extends Document {
   };
   createdAt: Date;
   updatedAt: Date;
+}
+
+/**
+ * Interface for static methods
+ */
+export interface ISyncSettingsModel extends Model<ISyncSettings> {
+  getOrCreate(entityType: string): Promise<ISyncSettings>;
+  updateTTL(entityType: string, ttlSeconds: number): Promise<ISyncSettings>;
+  isCircuitBreakerOpen(entityType: string): Promise<boolean>;
+  tripCircuitBreaker(entityType: string): Promise<void>;
+  resetCircuitBreaker(entityType: string): Promise<void>;
+  getAllActive(): Promise<ISyncSettings[]>;
 }
 
 /**
@@ -90,14 +90,14 @@ const SyncSettingsSchema: Schema = new Schema(
       required: true,
       min: [5, 'Polling interval must be at least 5 minutes'],
       max: [10080, 'Polling interval cannot exceed 7 days (10080 minutes)'],
-      default: 60 // Will be set properly in pre-save middleware
+      default: 60 // Default will be set based on entityType in pre-save hook
     },
     ttlSeconds: {
       type: Number,
       required: true,
       min: [60, 'TTL must be at least 60 seconds'],
       max: [2592000, 'TTL cannot exceed 30 days (2592000 seconds)'],
-      default: 3600 // Will be set properly in pre-save middleware
+      default: 3600 // Default will be set based on entityType in pre-save hook
     },
     isWebhookEnabled: {
       type: Boolean,
@@ -184,9 +184,22 @@ const SyncSettingsSchema: Schema = new Schema(
 );
 
 /**
- * Pre-save middleware to calculate next scheduled sync
+ * Pre-save middleware to set defaults and calculate next scheduled sync
  */
 SyncSettingsSchema.pre<ISyncSettings>('save', function(next) {
+  // Set default values based on entityType if they're not already set
+  if (this.isNew && this.entityType) {
+    const config = DEFAULT_CONFIGS[this.entityType as keyof typeof DEFAULT_CONFIGS];
+    if (config) {
+      if (!this.pollingIntervalMinutes || this.pollingIntervalMinutes === 60) {
+        this.pollingIntervalMinutes = config.pollingIntervalMinutes;
+      }
+      if (!this.ttlSeconds || this.ttlSeconds === 3600) {
+        this.ttlSeconds = config.ttlSeconds;
+      }
+    }
+  }
+  
   // Calculate next scheduled sync based on polling interval
   if (this.pollingIntervalMinutes && this.lastPollingSync) {
     this.nextScheduledSync = new Date(
@@ -263,7 +276,8 @@ SyncSettingsSchema.statics.isCircuitBreakerOpen = async function(entityType: str
  * Static method to trip circuit breaker
  */
 SyncSettingsSchema.statics.tripCircuitBreaker = async function(entityType: string): Promise<void> {
-  const settings = await (this as any).getOrCreate(entityType);
+  const Model = this as ISyncSettingsModel;
+  const settings = await Model.getOrCreate(entityType);
   
   settings.circuitBreaker.failureCount += 1;
   
@@ -298,4 +312,4 @@ SyncSettingsSchema.statics.getAllActive = async function(): Promise<ISyncSetting
   return this.find({ 'circuitBreaker.isOpen': false });
 };
 
-export const SyncSettingsModel = mongoose.model<ISyncSettings, ISyncSettingsModel>('SyncSettings', SyncSettingsSchema) as ISyncSettingsModel;
+export const SyncSettingsModel = mongoose.model<ISyncSettings, ISyncSettingsModel>('SyncSettings', SyncSettingsSchema);

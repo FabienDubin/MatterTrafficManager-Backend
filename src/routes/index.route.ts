@@ -51,14 +51,6 @@ router.use('/admin/notion-mapping', notionMappingRouter);
 // Admin routes - Notion discovery
 router.use('/admin/notion-discovery', notionDiscoveryRouter);
 
-// Sync routes
-import notionSyncRouter from './notionSync.route';
-router.use('/sync', notionSyncRouter);
-
-// Monitoring routes
-import monitoringRouter from './monitoring.route';
-router.use('/monitoring', monitoringRouter);
-
 // Webhook routes (no auth middleware here - handled internally)
 router.use('/', webhookRouter);
 

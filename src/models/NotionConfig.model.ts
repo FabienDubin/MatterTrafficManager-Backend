@@ -36,7 +36,7 @@ export interface IRelationshipValidation {
 
 export interface INotionConfig extends Document {
   environment: 'development' | 'staging' | 'production';
-  integrationToken: string; // Notion integration token for API access
+  notionToken: string;
   webhookVerificationToken?: string; // Encrypted webhook verification token
   webhookCaptureMode?: {
     enabled: boolean;
@@ -47,16 +47,6 @@ export interface INotionConfig extends Document {
       timestamp: Date;
       hasSignature: boolean;
     };
-    capturedRequest?: {
-      headers: any;
-      body: any;
-      method: string;
-      url: string;
-      timestamp: Date;
-      signature?: string;
-      detectedSecret?: string;
-      secretLocation?: string;
-    };
   };
   databases: {
     teams: INotionDatabase;
@@ -65,16 +55,11 @@ export interface INotionConfig extends Document {
     projects: INotionDatabase;
     traffic: INotionDatabase;
   };
-  databaseMappings: Array<{
-    entityType: string;
-    notionDatabaseId: string;
-    notionDatabaseName?: string;
-  }>;
   mappings: IDatabaseMapping[];
   relationships: IRelationshipValidation[];
   autoDetectEnabled: boolean;
-  isActive: boolean; // To mark active config
   lastAutoDetectDate?: Date;
+  isActive: boolean; // To mark active config
   createdBy: mongoose.Types.ObjectId;
   updatedBy: mongoose.Types.ObjectId;
   version: number;
@@ -136,10 +121,9 @@ const NotionConfigSchema = new Schema<INotionConfig>(
       default: 'development',
       required: true
     },
-    integrationToken: {
+    notionToken: {
       type: String,
-      required: false,
-      default: '',
+      required: true,
       select: false
     },
     webhookVerificationToken: {
@@ -154,16 +138,6 @@ const NotionConfigSchema = new Schema<INotionConfig>(
         databaseId: { type: String },
         timestamp: { type: Date },
         hasSignature: { type: Boolean }
-      },
-      capturedRequest: {
-        headers: { type: Schema.Types.Mixed },
-        body: { type: Schema.Types.Mixed },
-        method: { type: String },
-        url: { type: String },
-        timestamp: { type: Date },
-        signature: { type: String },
-        detectedSecret: { type: String },
-        secretLocation: { type: String }
       }
     },
     isActive: {
@@ -213,11 +187,6 @@ const NotionConfigSchema = new Schema<INotionConfig>(
         }
       }
     },
-    databaseMappings: [{
-      entityType: { type: String, required: true },
-      notionDatabaseId: { type: String, required: true },
-      notionDatabaseName: { type: String }
-    }],
     mappings: [DatabaseMappingSchema],
     relationships: [RelationshipValidationSchema],
     autoDetectEnabled: {

@@ -1,15 +1,6 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 /**
- * Static methods interface
- */
-interface ISyncLogModel extends Model<ISyncLog> {
-  getLatestSync(entityType: string): Promise<ISyncLog | null>;
-  getStats(entityType?: string, days?: number): Promise<any[]>;
-  isWebhookHealthy(entityType: string): Promise<boolean>;
-}
-
-/**
  * Interface for tracking synchronization operations
  */
 export interface ISyncLog extends Document {
@@ -22,7 +13,7 @@ export interface ISyncLog extends Document {
   startTime: Date;
   endTime: Date;
   duration: number; // en millisecondes
-  syncErrors?: string[]; // Array pour multiples erreurs (renamed to avoid conflict)
+  syncErrors?: string[]; // Array pour multiples erreurs
   webhookEventId?: string; // Pour tracer les events webhook
   lastWebhookUpdate?: Date;
   lastPollingUpdate?: Date;
@@ -33,6 +24,15 @@ export interface ISyncLog extends Document {
   };
   createdAt: Date;
   updatedAt: Date;
+}
+
+/**
+ * Interface for static methods
+ */
+export interface ISyncLogModel extends Model<ISyncLog> {
+  getLatestSync(entityType: string): Promise<ISyncLog | null>;
+  getStats(entityType?: string, days?: number): Promise<any[]>;
+  isWebhookHealthy(entityType: string): Promise<boolean>;
 }
 
 /**
@@ -201,4 +201,4 @@ SyncLogSchema.statics.isWebhookHealthy = async function(entityType: string): Pro
   return !!recentWebhook;
 };
 
-export const SyncLogModel = mongoose.model<ISyncLog, ISyncLogModel>('SyncLog', SyncLogSchema) as ISyncLogModel;
+export const SyncLogModel = mongoose.model<ISyncLog, ISyncLogModel>('SyncLog', SyncLogSchema);

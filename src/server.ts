@@ -57,7 +57,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Rate limiting - Applied selectively (excluding webhooks)
+// Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
@@ -68,15 +68,7 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-
-// Apply rate limiting to specific routes (NOT webhooks)
-app.use('/api/v1/auth', limiter);
-app.use('/api/v1/admin', limiter);
-app.use('/api/v1/notion', limiter);
-app.use('/api/v1/sync', limiter);
-app.use('/api/v1/monitoring', limiter);
-app.use('/api/v1/health', limiter);
-// NOTE: /api/v1/webhooks is intentionally excluded from rate limiting
+app.use('/api', limiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

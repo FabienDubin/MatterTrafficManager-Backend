@@ -43,7 +43,7 @@ async function createSyncIndexes() {
       console.log(`\n📇 Checking TTL index for ${name}...`);
       
       // Check if _ttl field exists in schema
-      const schemaHasTTL = (model as any).schema.path('_ttl');
+      const schemaHasTTL = model.schema.path('_ttl');
       
       if (schemaHasTTL) {
         // Create TTL index if not exists
@@ -61,7 +61,7 @@ async function createSyncIndexes() {
       console.log(`✅ NotionId index ensured for ${name}`);
 
       // Create index on lastNotionSync for sync queries
-      const schemaHasLastSync = (model as any).schema.path('lastNotionSync');
+      const schemaHasLastSync = model.schema.path('lastNotionSync');
       if (schemaHasLastSync) {
         await model.collection.createIndex({ lastNotionSync: -1 });
         console.log(`✅ LastNotionSync index ensured for ${name}`);

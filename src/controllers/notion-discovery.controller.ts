@@ -12,7 +12,7 @@ export const runFullDiscovery = async (
 ): Promise<void> => {
   try {
     const environment = process.env.NODE_ENV || 'development';
-    const config = await NotionConfigModel.findOne({ environment }).select('+integrationToken');
+    const config = await NotionConfigModel.findOne({ environment }).select('+notionToken');
     
     if (!config) {
       res.status(404).json({
@@ -25,8 +25,8 @@ export const runFullDiscovery = async (
     // Decrypt token or use environment variable as fallback
     let decryptedToken: string;
     try {
-      if (config.integrationToken) {
-        decryptedToken = (config as any).decryptToken(config.integrationToken);
+      if (config.notionToken) {
+        decryptedToken = (config as any).decryptToken(config.notionToken);
       } else if (process.env.NOTION_TOKEN) {
         decryptedToken = process.env.NOTION_TOKEN;
         console.log('Using NOTION_TOKEN from environment variable as fallback');
@@ -81,7 +81,7 @@ export const validateRelationships = async (
 ): Promise<void> => {
   try {
     const environment = process.env.NODE_ENV || 'development';
-    const config = await NotionConfigModel.findOne({ environment }).select('+integrationToken');
+    const config = await NotionConfigModel.findOne({ environment }).select('+notionToken');
     
     if (!config) {
       res.status(404).json({
@@ -94,8 +94,8 @@ export const validateRelationships = async (
     // Decrypt token
     let decryptedToken: string;
     try {
-      if (config.integrationToken) {
-        decryptedToken = (config as any).decryptToken(config.integrationToken);
+      if (config.notionToken) {
+        decryptedToken = (config as any).decryptToken(config.notionToken);
       } else if (process.env.NOTION_TOKEN) {
         decryptedToken = process.env.NOTION_TOKEN;
       } else {
@@ -144,7 +144,7 @@ export const getDiscoveredSchemas = async (
 ): Promise<void> => {
   try {
     const environment = process.env.NODE_ENV || 'development';
-    const config = await NotionConfigModel.findOne({ environment }).select('+integrationToken');
+    const config = await NotionConfigModel.findOne({ environment }).select('+notionToken');
     
     if (!config) {
       res.status(404).json({
@@ -157,8 +157,8 @@ export const getDiscoveredSchemas = async (
     // Decrypt token
     let decryptedToken: string;
     try {
-      if (config.integrationToken) {
-        decryptedToken = (config as any).decryptToken(config.integrationToken);
+      if (config.notionToken) {
+        decryptedToken = (config as any).decryptToken(config.notionToken);
       } else if (process.env.NOTION_TOKEN) {
         decryptedToken = process.env.NOTION_TOKEN;
       } else {

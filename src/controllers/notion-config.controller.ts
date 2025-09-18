@@ -15,7 +15,7 @@ export const getNotionConfig = async (
     const environment = process.env.NODE_ENV || 'development';
     
     let config = await NotionConfigModel.findOne({ environment })
-      .select('+integrationToken +webhookVerificationToken');
+      .select('+notionToken');
     
     if (!config) {
       // Create default configuration if none exists
@@ -32,7 +32,7 @@ export const getNotionConfig = async (
       
       config = await NotionConfigModel.create({
         environment,
-        integrationToken: encryptedToken,
+        notionToken: encryptedToken,
         databases: {
           teams: { id: '268a12bfa99281f886bbd9ffc36be65f', name: 'Teams' },
           users: { id: '268a12bfa99281bf9101ebacbae3e39a', name: 'Users' },
@@ -48,25 +48,14 @@ export const getNotionConfig = async (
       });
     }
     
-    // Decrypt tokens before sending
-    if (config.integrationToken) {
+    // Decrypt token before sending
+    if (config.notionToken) {
       try {
-        const decryptedToken = (config as any).decryptToken(config.integrationToken);
-        config.integrationToken = decryptedToken;
+        const decryptedToken = (config as any).decryptToken(config.notionToken);
+        config.notionToken = decryptedToken;
       } catch (error) {
-        console.error('Error decrypting integration token:', error);
-        config.integrationToken = '';
-      }
-    }
-    
-    // Decrypt webhook verification token if present
-    if (config.webhookVerificationToken) {
-      try {
-        const decryptedWebhookToken = (config as any).decryptToken(config.webhookVerificationToken);
-        config.webhookVerificationToken = decryptedWebhookToken;
-      } catch (error) {
-        console.error('Error decrypting webhook token:', error);
-        config.webhookVerificationToken = '';
+        console.error('Error decrypting token:', error);
+        config.notionToken = '';
       }
     }
     
@@ -96,13 +85,13 @@ export const saveNotionConfig = async (
     const userId = (req as any).user?._id || new mongoose.Types.ObjectId();
     const ipAddress = req.ip;
     
-    const { integrationToken, databases } = req.body;
+    const { notionToken, databases } = req.body;
     
     // At least one field must be provided
-    if (!integrationToken && !databases) {
+    if (!notionToken && !databases) {
       res.status(400).json({
         success: false,
-        error: 'At least integrationToken or databases must be provided'
+        error: 'At least notionToken or databases must be provided'
       });
       return;
     }
@@ -130,11 +119,11 @@ export const saveNotionConfig = async (
       const changes: Record<string, any> = {};
       
       // Update token if provided
-      if (integrationToken) {
-        const encryptedToken = (config as any).encryptToken(integrationToken);
-        if (config.integrationToken !== encryptedToken) {
-          changes.integrationToken = 'Updated';
-          config.integrationToken = encryptedToken;
+      if (notionToken) {
+        const encryptedToken = (config as any).encryptToken(notionToken);
+        if (config.notionToken !== encryptedToken) {
+          changes.notionToken = 'Updated';
+          config.notionToken = encryptedToken;
         }
       }
       
@@ -172,7 +161,7 @@ export const saveNotionConfig = async (
       
       const newConfig = new NotionConfigModel({
         environment,
-        integrationToken: '',
+        notionToken: '',
         databases: defaultDatabases,
         createdBy: userId,
         updatedBy: userId,
@@ -182,9 +171,9 @@ export const saveNotionConfig = async (
       });
       
       // Encrypt token if provided
-      if (integrationToken) {
-        const encryptedToken = (newConfig as any).encryptToken(integrationToken);
-        newConfig.integrationToken = encryptedToken;
+      if (notionToken) {
+        const encryptedToken = (newConfig as any).encryptToken(notionToken);
+        newConfig.notionToken = encryptedToken;
       }
       
       // Add audit log entry
@@ -220,7 +209,7 @@ export const testNotionConnection = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { databaseName, integrationToken } = req.body;
+    const { databaseName } = req.body;
     
     if (!databaseName) {
       res.status(400).json({
@@ -240,7 +229,7 @@ export const testNotionConnection = async (
     }
     
     const environment = process.env.NODE_ENV || 'development';
-    const config = await NotionConfigModel.findOne({ environment }).select('+integrationToken');
+    const config = await NotionConfigModel.findOne({ environment }).select('+notionToken');
     
     if (!config) {
       res.status(400).json({
@@ -250,15 +239,11 @@ export const testNotionConnection = async (
       return;
     }
     
-    // Use provided token (already decrypted from frontend) or decrypt from DB
+    // Decrypt token or use environment variable as fallback
     let decryptedToken: string;
     try {
-      if (integrationToken) {
-        // Token from frontend is already decrypted
-        decryptedToken = integrationToken;
-      } else if (config.integrationToken) {
-        // Token from DB needs decryption
-        decryptedToken = (config as any).decryptToken(config.integrationToken);
+      if (config.notionToken) {
+        decryptedToken = (config as any).decryptToken(config.notionToken);
       } else if (process.env.NOTION_TOKEN) {
         decryptedToken = process.env.NOTION_TOKEN;
         console.log('Using NOTION_TOKEN from environment variable as fallback');
@@ -290,8 +275,8 @@ export const testNotionConnection = async (
         setTimeout(() => reject(new Error('Connection timeout')), 30000)
       );
       
-      const queryPromise = notion.dataSources.query({
-        data_source_id: databaseId,
+      const queryPromise = notion.databases.query({
+        database_id: databaseId,
         page_size: 1
       });
       
@@ -340,98 +325,5 @@ export const testNotionConnection = async (
       success: false,
       error: 'Internal server error while testing connection'
     });
-  }
-};
-
-/**
- * Update webhook verification token
- */
-export const updateWebhookToken = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const { webhookToken } = req.body;
-    
-    if (!webhookToken) {
-      res.status(400).json({
-        success: false,
-        error: 'Webhook token is required'
-      });
-      return;
-    }
-    
-    const environment = process.env.NODE_ENV || 'development';
-    let config = await NotionConfigModel.findOne({ environment });
-    
-    if (!config) {
-      // Create new config if it doesn't exist
-      const userId = (req as any).user?._id || new mongoose.Types.ObjectId();
-      config = new NotionConfigModel({
-        environment,
-        databases: {
-          teams: { id: '', name: 'Teams' },
-          users: { id: '', name: 'Users' },
-          clients: { id: '', name: 'Clients' },
-          projects: { id: '', name: 'Projects' },
-          traffic: { id: '', name: 'Traffic' }
-        },
-        createdBy: userId,
-        updatedBy: userId
-      });
-    }
-    
-    // Encrypt and save the webhook token
-    config.webhookVerificationToken = (config as any).encryptToken(webhookToken);
-    config.updatedBy = (req as any).user?._id || config.updatedBy;
-    
-    await config.save();
-    
-    res.status(200).json({
-      success: true,
-      message: 'Webhook token updated successfully',
-      hasToken: true
-    });
-  } catch (error) {
-    console.error('Error updating webhook token:', error);
-    next(error);
-  }
-};
-
-/**
- * Remove webhook verification token
- */
-export const removeWebhookToken = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const environment = process.env.NODE_ENV || 'development';
-    const config = await NotionConfigModel.findOne({ environment });
-    
-    if (!config) {
-      res.status(404).json({
-        success: false,
-        error: 'Configuration not found'
-      });
-      return;
-    }
-    
-    // Remove the webhook token
-    delete (config as any).webhookVerificationToken;
-    config.updatedBy = (req as any).user?._id || config.updatedBy;
-    
-    await config.save();
-    
-    res.status(200).json({
-      success: true,
-      message: 'Webhook token removed successfully',
-      hasToken: false
-    });
-  } catch (error) {
-    console.error('Error removing webhook token:', error);
-    next(error);
   }
 };

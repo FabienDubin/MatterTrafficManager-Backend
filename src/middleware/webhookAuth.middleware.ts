@@ -4,7 +4,6 @@ import { NotionConfigModel } from '../models/NotionConfig.model';
 
 /**
  * Middleware to validate Notion webhook HMAC signature
- * In capture mode, bypasses validation to capture the initial webhook
  */
 export const webhookAuthMiddleware = async (
   req: Request,
@@ -12,41 +11,7 @@ export const webhookAuthMiddleware = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    // Get the active Notion config
-    const config = await NotionConfigModel.findOne({ isActive: true });
-    
-    if (!config) {
-      console.error('❌ No active configuration found');
-      res.status(500).json({ 
-        error: 'No active configuration',
-        code: 'NO_CONFIG' 
-      });
-      return;
-    }
-
-    // Check if we're in capture mode
-    if (config.webhookCaptureMode?.enabled) {
-      console.log('🎯 Webhook capture mode active - bypassing validation');
-      
-      // Check if capture mode has expired (5 minutes timeout)
-      const captureStartTime = config.webhookCaptureMode.enabledAt;
-      const now = new Date();
-      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-      
-      if (captureStartTime && captureStartTime < fiveMinutesAgo) {
-        // Disable expired capture mode
-        config.webhookCaptureMode.enabled = false;
-        await config.save();
-        
-        console.log('⏰ Capture mode expired - disabling');
-      } else {
-        // Capture mode is active, bypass validation
-        next();
-        return;
-      }
-    }
-
-    // Normal mode - validate HMAC signature
+    // Get the signature from headers
     const signature = req.headers['x-notion-signature'] as string;
     
     if (!signature) {
@@ -57,7 +22,10 @@ export const webhookAuthMiddleware = async (
       return;
     }
 
-    if (!config.webhookVerificationToken) {
+    // Get the active Notion config with webhook verification token
+    const config = await NotionConfigModel.findOne({ isActive: true });
+    
+    if (!config || !config.webhookVerificationToken) {
       console.error('❌ Webhook verification token not configured');
       res.status(500).json({ 
         error: 'Webhook not configured',
