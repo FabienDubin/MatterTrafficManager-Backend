@@ -18,42 +18,42 @@ export const DATABASES = {
 };
 
 export const TASK_PROPERTY_IDS = {
-  title: 'title',
-  workPeriod: '%40WIV',
-  assignedMembers: '%60wMW',
-  projectId: 'pE%7Bw',
-  taskType: 'Zq%40f',
-  status: 'fMMJ',
-  notes: 'kszE',
-  billedHours: 'wDUP',
-  actualHours: 'SmAG',
-  addToCalendar: '%3F%3B%5Ce',
-  googleEventId: 'Ylnb',
-  clientPlanning: '%5C%5Cb%3F',
-  client: 'caFD',
-  team: 'TJ%7CG'
+  title: 'Nom de tâche',
+  workPeriod: 'Période de travail',
+  assignedMembers: 'Utilisateurs',
+  projectId: '📁 Projets',
+  taskType: 'Type de tache',
+  status: 'État',
+  notes: 'Commentaire',
+  billedHours: 'Nombre de heures facturés',
+  actualHours: 'Nombre de heures effectives',
+  addToCalendar: 'Ajouter au Calendrier',
+  googleEventId: 'Google Event ID',
+  clientPlanning: 'Ajouter au rétroplanning client',
+  client: 'Client',
+  team: 'Équipe'
 };
 
 export const USER_PROPERTY_IDS = {
-  title: 'title',
-  email: 'qiNY',
-  team: 'MHDm',
-  tasks: '%3F%3D%7CK'
+  title: 'Nom',
+  email: 'Email',
+  team: 'Équipe',
+  tasks: '✅ Tâches'
 };
 
 export const PROJECT_PROPERTY_IDS = {
-  title: 'title',
-  client: 'IQQz',
-  status: 'E%60o%5B',
-  tasks: 'yrmv'
+  title: 'Nom',
+  client: 'Client',
+  status: 'Statut du projet',
+  tasks: 'Tâches'
 };
 
 export const CLIENT_PROPERTY_IDS = {
-  title: 'title',
-  projects: 'j%3DET'
+  title: 'Nom du client',
+  projects: '📁 Projets'
 };
 
 export const TEAM_PROPERTY_IDS = {
-  title: 'title',
-  members: 'Ha%3Eo'
+  title: 'Nom',
+  members: 'Utilisateurs'
 };

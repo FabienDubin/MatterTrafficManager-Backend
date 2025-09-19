@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+// Rate limiting removed - only auth routes need it
 
 // Import middleware and routes
 import { requestLogger } from './middleware/logging.middleware';
@@ -35,18 +35,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: {
-    error: 'Too many requests from this IP, please try again later.',
-    retryAfter: '15 minutes'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api', limiter);
+// Rate limiting removed - only auth endpoints need rate limiting
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

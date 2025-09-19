@@ -6,7 +6,7 @@ import {
 } from '../controllers/notion-config.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { requireAdmin } from '../middleware/admin.middleware';
-import { rateLimiter } from '../middleware/rate-limit.middleware';
+// Rate limiter removed - test endpoint doesn't need rate limiting for admin
 
 const router = Router();
 
@@ -44,7 +44,7 @@ router.post(
   '/test',
   authenticate,
   requireAdmin,
-  rateLimiter({ windowMs: 60000, max: 10, message: 'Too many test requests, please try again later.' }),
+  // No rate limiting needed - admin endpoint with authentication
   testNotionConnection
 );
 

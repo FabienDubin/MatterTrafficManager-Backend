@@ -1,67 +1,98 @@
-import { Request, Response, NextFunction } from 'express';
-import { healthService } from '../services/health.service';
-import logger from '../config/logger.config';
+import { Request, Response } from 'express';
+import mongoose from 'mongoose';
+import { redisService } from '../services/redis.service';
+import { SyncLogModel } from '../models/SyncLog.model';
 
-/**
- * Health check controller
- * Handles /api/v1/health endpoint according to layered architecture
- */
 export class HealthController {
   /**
-   * Get system health status
-   * @route GET /api/v1/health
+   * Basic health check endpoint
    */
-  static async getHealth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  check = async (_req: Request, res: Response): Promise<void> => {
     try {
-      const healthData = await healthService.getSystemHealth();
-      
-      logger.info('Health check requested', {
-        timestamp: healthData.timestamp,
-        status: healthData.status
-      });
+      const checks = {
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        services: {
+          mongodb: await this.checkMongoDB(),
+          redis: await this.checkRedis(),
+          webhooks: await this.checkWebhooks(),
+        },
+      };
 
-      res.status(200).json(healthData);
+      const allHealthy = Object.values(checks.services).every(
+        service => service.status === 'healthy'
+      );
+
+      res.status(allHealthy ? 200 : 503).json(checks);
     } catch (error) {
-      logger.error('Health check failed', { error });
-      next(error);
+      res.status(503).json({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Health check failed',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  };
+
+  /**
+   * Check MongoDB connection
+   */
+  private async checkMongoDB(): Promise<{ status: string; message?: string }> {
+    try {
+      if (mongoose.connection.readyState !== 1) {
+        return { status: 'unhealthy', message: 'Not connected' };
+      }
+      
+      // Ping the database
+      await mongoose.connection.db?.admin().ping();
+      return { status: 'healthy' };
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        message: error instanceof Error ? error.message : 'Connection failed',
+      };
     }
   }
 
   /**
-   * Check if service is ready (all dependencies accessible)
-   * @route GET /api/v1/health/ready
+   * Check Redis connection
    */
-  static async getReady(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const readyData = await healthService.getReadyStatus();
-      const statusCode = readyData.ready ? 200 : 503;
-      
-      logger.info('Ready check requested', {
-        timestamp: readyData.timestamp,
-        ready: readyData.ready
-      });
-
-      res.status(statusCode).json(readyData);
-    } catch (error) {
-      logger.error('Ready check failed', { error });
-      next(error);
-    }
+  private async checkRedis(): Promise<{ status: string; message?: string }> {
+    return await redisService.healthCheck();
   }
 
   /**
-   * Get version information
-   * @route GET /api/v1/health/version
+   * Check webhook status (last webhook received)
    */
-  static async getVersion(req: Request, res: Response, next: NextFunction): Promise<void> {
+  private async checkWebhooks(): Promise<{ status: string; lastReceived?: string }> {
     try {
-      const versionData = healthService.getVersionInfo();
-      
-      logger.info('Version info requested');
+      const lastWebhook = await SyncLogModel.findOne({
+        syncMethod: 'webhook',
+        syncStatus: 'success',
+      })
+        .sort({ createdAt: -1 })
+        .select('createdAt');
 
-      res.status(200).json(versionData);
+      if (!lastWebhook) {
+        return { status: 'waiting', lastReceived: 'never' };
+      }
+
+      const hoursSinceLastWebhook = 
+        (Date.now() - lastWebhook.createdAt.getTime()) / (1000 * 60 * 60);
+
+      if (hoursSinceLastWebhook > 24) {
+        return { 
+          status: 'stale', 
+          lastReceived: lastWebhook.createdAt.toISOString() 
+        };
+      }
+
+      return { 
+        status: 'healthy', 
+        lastReceived: lastWebhook.createdAt.toISOString() 
+      };
     } catch (error) {
-      logger.error('Version info failed', { error });
-      next(error);
+      return { status: 'error', lastReceived: 'unknown' };
     }
   }
 }

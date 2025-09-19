@@ -1,5 +1,4 @@
 import { notion, DATABASES } from '../config/notion.config';
-import { throttledNotionCall, batchNotionCalls } from './rateLimiter.service';
 import { retryWithBackoff } from '../utils/retryWithBackoff';
 import { NotionAPIError } from '../errors/NotionAPIError';
 import {
@@ -23,9 +22,67 @@ import {
 import logger from '../config/logger.config';
 
 class NotionService {
+  private lastCallTime = 0;
+  private minTimeBetweenCalls = 334; // ~3 requests per second (1000ms / 3)
+
+  /**
+   * Simple throttle to ensure we don't exceed Notion's rate limit
+   * Guarantees minimum 334ms between calls (3 req/sec)
+   */
+  private async throttledNotionCall<T>(
+    fn: () => Promise<T>,
+    operation?: string
+  ): Promise<T> {
+    const now = Date.now();
+    const timeSinceLastCall = now - this.lastCallTime;
+    
+    if (timeSinceLastCall < this.minTimeBetweenCalls) {
+      const waitTime = this.minTimeBetweenCalls - timeSinceLastCall;
+      logger.debug(`Throttling Notion API call by ${waitTime}ms${operation ? ` for ${operation}` : ''}`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
+    this.lastCallTime = Date.now();
+    const startTime = Date.now();
+    
+    try {
+      const result = await fn();
+      const duration = Date.now() - startTime;
+      logger.debug(`Notion API call completed${operation ? ` [${operation}]` : ''}`, { duration });
+      return result;
+    } catch (error) {
+      logger.error(`Notion API call failed${operation ? ` [${operation}]` : ''}`, { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Batch multiple Notion calls with throttling
+   */
+  private async batchNotionCalls<T>(
+    calls: Array<() => Promise<T>>,
+    batchSize = 3
+  ): Promise<T[]> {
+    const results: T[] = [];
+    
+    for (let i = 0; i < calls.length; i += batchSize) {
+      const batch = calls.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map(call => this.throttledNotionCall(call))
+      );
+      results.push(...batchResults);
+      
+      // Wait 1 second between batches if there are more
+      if (i + batchSize < calls.length) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    return results;
+  }
   async testConnection(): Promise<boolean> {
     try {
-      await throttledNotionCall(
+      await this.throttledNotionCall(
         () => notion.users.list({ page_size: 1 }),
         'testConnection'
       );
@@ -52,7 +109,7 @@ class NotionService {
       }
       
       const response = await retryWithBackoff(
-        () => throttledNotionCall(
+        () => this.throttledNotionCall(
           () => notion.databases.query(queryParams),
           'queryTrafficDatabase'
         ),
@@ -95,7 +152,7 @@ class NotionService {
       }
       
       const response = await retryWithBackoff(
-        () => throttledNotionCall(
+        () => this.throttledNotionCall(
           () => notion.databases.query(queryParams),
           'queryUsersDatabase'
         )
@@ -139,7 +196,7 @@ class NotionService {
       }
 
       const response = await retryWithBackoff(
-        () => throttledNotionCall(
+        () => this.throttledNotionCall(
           () => notion.databases.query(queryParams),
           'queryProjectsDatabase'
         )
@@ -173,7 +230,7 @@ class NotionService {
       }
       
       const response = await retryWithBackoff(
-        () => throttledNotionCall(
+        () => this.throttledNotionCall(
           () => notion.databases.query(queryParams),
           'queryClientsDatabase'
         )
@@ -207,7 +264,7 @@ class NotionService {
       }
       
       const response = await retryWithBackoff(
-        () => throttledNotionCall(
+        () => this.throttledNotionCall(
           () => notion.databases.query(queryParams),
           'queryTeamsDatabase'
         )
@@ -231,7 +288,7 @@ class NotionService {
       const properties = createNotionTaskProperties(input);
       
       const response = await retryWithBackoff(
-        () => throttledNotionCall(
+        () => this.throttledNotionCall(
           () => notion.pages.create({
             parent: { database_id: DATABASES.traffic },
             properties
@@ -257,7 +314,7 @@ class NotionService {
   async getTask(taskId: string): Promise<NotionTask> {
     try {
       const response = await retryWithBackoff(
-        () => throttledNotionCall(
+        () => this.throttledNotionCall(
           () => notion.pages.retrieve({ page_id: taskId }),
           'getTask'
         )
@@ -279,7 +336,7 @@ class NotionService {
       const properties = createNotionTaskProperties(input);
       
       const response = await retryWithBackoff(
-        () => throttledNotionCall(
+        () => this.throttledNotionCall(
           () => notion.pages.update({
             page_id: taskId,
             properties
@@ -306,7 +363,7 @@ class NotionService {
   async archiveTask(taskId: string): Promise<void> {
     try {
       await retryWithBackoff(
-        () => throttledNotionCall(
+        () => this.throttledNotionCall(
           () => notion.pages.update({
             page_id: taskId,
             archived: true
@@ -332,7 +389,7 @@ class NotionService {
         () => notion.users.list({ page_size: 1 })
       );
 
-      await batchNotionCalls(calls, 3);
+      await this.batchNotionCalls(calls, 3);
       
       const timeTaken = Date.now() - startTime;
       
@@ -406,7 +463,7 @@ class NotionService {
       }
 
       const response = await retryWithBackoff(
-        () => throttledNotionCall(
+        () => this.throttledNotionCall(
           () => notion.databases.query(queryParams),
           'queryTasksWithFilters'
         )
@@ -632,7 +689,7 @@ class NotionService {
 
     for (const db of databases) {
       try {
-        const response = await throttledNotionCall(
+        const response = await this.throttledNotionCall(
           () => notion.databases.query({
             database_id: db.id,
             page_size: 1

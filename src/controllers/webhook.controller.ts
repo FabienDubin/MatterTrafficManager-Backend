@@ -1,14 +1,12 @@
 import { Request, Response } from 'express';
 import { NotionConfigModel } from '../models/NotionConfig.model';
 import { SyncLogModel } from '../models/SyncLog.model';
-import { QueueService } from '../services/queue.service';
+import { redisService } from '../services/redis.service';
 import crypto from 'crypto';
 
 export class WebhookController {
-  private queueService: QueueService;
-
   constructor() {
-    this.queueService = new QueueService();
+    // WebhookController uses RedisService for cache invalidation
   }
 
   /**
@@ -25,16 +23,23 @@ export class WebhookController {
       const { type, data } = req.body;
       const webhookEventId = crypto.randomUUID();
 
-      console.log(`📨 Webhook received: ${type} - Event ID: ${webhookEventId}`);
+      console.log(`\n${'='.repeat(50)}`);
+      console.log(`📨 WEBHOOK RECEIVED: ${type}`);
+      console.log(`🆔 Event ID: ${webhookEventId}`);
+      console.log(`📅 Time: ${new Date().toISOString()}`);
+      console.log(`📦 Full Payload:`, JSON.stringify(req.body, null, 2));
+      console.log(`📄 Data Object:`, JSON.stringify(data, null, 2));
 
-      // Identify the source database
-      const databaseId = data?.parent?.database_id || data?.parent?.data_source_id;
+      // Identify the source database - prioritize parent.id over data_source_id
+      const databaseId = data?.parent?.id || data?.parent?.database_id || data?.parent?.data_source_id;
       
       if (!databaseId) {
         console.error('❌ No database ID found in webhook event');
         return;
       }
 
+      console.log(`🔍 Looking up database ID: ${databaseId}`);
+      
       // Map database ID to entity type
       const entityType = await this.mapDatabaseIdToEntityType(databaseId);
       
@@ -43,15 +48,11 @@ export class WebhookController {
         return;
       }
 
-      // Add to queue for async processing
-      await this.queueService.addSyncJob({
-        entityType,
-        databaseId,
-        webhookEventId,
-        eventType: type,
-        eventData: data,
-        receivedAt: new Date(),
-      });
+      // Invalidate Redis cache for the affected entity type
+      await this.invalidateCacheForEntity(entityType, data?.id);
+      
+      console.log(`🗑️ Cache invalidated for ${entityType}`);
+      console.log(`${'='.repeat(50)}\n`);
 
       // Log webhook reception
       await SyncLogModel.create({
@@ -67,7 +68,7 @@ export class WebhookController {
         duration: Date.now() - startTime,
       });
 
-      console.log(`✅ Webhook event queued for ${entityType}`);
+      console.log(`✅ Webhook processed and cache invalidated for ${entityType}`);
     } catch (error) {
       console.error('❌ Error handling webhook:', error);
       
@@ -82,7 +83,7 @@ export class WebhookController {
         startTime: new Date(startTime),
         endTime: new Date(),
         duration: Date.now() - startTime,
-        errors: [error instanceof Error ? error.message : 'Unknown error'],
+        syncErrors: [error instanceof Error ? error.message : 'Unknown error'],
       });
     }
   };
@@ -243,6 +244,49 @@ export class WebhookController {
   };
 
   /**
+   * Invalidate Redis cache for specific entity
+   */
+  private async invalidateCacheForEntity(entityType: string, entityId?: string): Promise<void> {
+    try {
+      const patterns: string[] = [];
+      
+      switch (entityType) {
+        case 'Task':
+          patterns.push('tasks:*');
+          if (entityId) patterns.push(`task:${entityId}`);
+          break;
+        case 'Project':
+          patterns.push('projects:*');
+          if (entityId) patterns.push(`project:${entityId}`);
+          // Also invalidate tasks as they're related to projects
+          patterns.push('tasks:*');
+          break;
+        case 'Member':
+          patterns.push('members:*');
+          if (entityId) patterns.push(`member:${entityId}`);
+          break;
+        case 'Team':
+          patterns.push('teams:*');
+          if (entityId) patterns.push(`team:${entityId}`);
+          break;
+        case 'Client':
+          patterns.push('clients:*');
+          if (entityId) patterns.push(`client:${entityId}`);
+          break;
+      }
+
+      // Invalidate cache patterns
+      for (const pattern of patterns) {
+        await redisService.invalidatePattern(pattern);
+        console.log(`🗑️ Invalidated cache pattern: ${pattern}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error invalidating cache for ${entityType}:`, error);
+      // Don't throw error, webhook processing should continue
+    }
+  }
+
+  /**
    * Map database ID to entity type
    */
   private async mapDatabaseIdToEntityType(databaseId: string): Promise<string | null> {
@@ -253,14 +297,30 @@ export class WebhookController {
         return null;
       }
 
+      // Normalize database ID (remove hyphens)
+      const normalizedId = databaseId.replace(/-/g, '');
+      console.log(`🔄 Normalized ID: ${normalizedId}`);
+
       // Check each database type
       const databases = config.databases;
       
-      if (databases.teams?.id === databaseId) return 'Team';
-      if (databases.users?.id === databaseId) return 'Member';
-      if (databases.clients?.id === databaseId) return 'Client';
-      if (databases.projects?.id === databaseId) return 'Project';
-      if (databases.traffic?.id === databaseId) return 'Task';
+      // Also normalize the stored IDs for comparison
+      const normalizeStoredId = (id: string | undefined) => id?.replace(/-/g, '');
+      
+      if (normalizeStoredId(databases.teams?.id) === normalizedId) return 'Team';
+      if (normalizeStoredId(databases.users?.id) === normalizedId) return 'Member';
+      if (normalizeStoredId(databases.clients?.id) === normalizedId) return 'Client';
+      if (normalizeStoredId(databases.projects?.id) === normalizedId) return 'Project';
+      if (normalizeStoredId(databases.traffic?.id) === normalizedId) return 'Task';
+
+      // Log available databases for debugging
+      console.log('📋 Available databases:', {
+        teams: normalizeStoredId(databases.teams?.id),
+        users: normalizeStoredId(databases.users?.id),
+        clients: normalizeStoredId(databases.clients?.id),
+        projects: normalizeStoredId(databases.projects?.id),
+        traffic: normalizeStoredId(databases.traffic?.id),
+      });
 
       return null;
     } catch (error) {

@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import rateLimit from 'express-rate-limit';
+// Rate limiting removed - handled only on auth routes
 
 // Load configuration
 dotenv.config();
@@ -22,53 +22,46 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
 // Security headers
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+      },
     },
-  },
-}));
+  })
+);
 
 // CORS configuration with multiple origins support
-const allowedOrigins = process.env.FRONTEND_URL 
+const allowedOrigins = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
   : ['http://localhost:5173', 'http://localhost:3000'];
 
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or Postman)
-    if (!origin) return callback(null, true);
-    
-    // Check if origin is in the allowed list
-    if (allowedOrigins.includes(origin) || 
-        origin.includes('mattertrafficmanager.com')) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  optionsSuccessStatus: 200,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or Postman)
+      if (!origin) return callback(null, true);
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: {
-    error: 'Too many requests from this IP, please try again later.',
-    retryAfter: '15 minutes'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api', limiter);
+      // Check if origin is in the allowed list
+      if (allowedOrigins.includes(origin) || origin.includes('mattertrafficmanager.com')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    optionsSuccessStatus: 200,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  })
+);
+
+// Rate limiting removed - only auth endpoints need rate limiting
+// See auth.route.ts for authentication rate limiting
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -90,7 +83,7 @@ app.get('/', (_, res) => {
     version: '1.0.0',
     status: 'operational',
     documentation: process.env.NODE_ENV !== 'production' ? '/api-docs' : 'Contact administrator',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -120,21 +113,22 @@ const connectDB = async (): Promise<void> => {
 const startServer = async (): Promise<void> => {
   try {
     await connectDB();
-    
+
     const server = app.listen(PORT, () => {
       logger.info('Server started successfully', {
         port: PORT,
         environment: process.env.NODE_ENV || 'development',
         apiUrl: `http://localhost:${PORT}/api/v1`,
         healthCheck: `http://localhost:${PORT}/api/v1/health`,
-        documentation: process.env.NODE_ENV !== 'production' ? `http://localhost:${PORT}/api-docs` : 'disabled'
+        documentation:
+          process.env.NODE_ENV !== 'production' ? `http://localhost:${PORT}/api-docs` : 'disabled',
       });
     });
 
     // Graceful shutdown handlers
     const gracefulShutdown = async (signal: string) => {
       logger.info('Graceful shutdown initiated', { signal });
-      
+
       server.close(async () => {
         try {
           await mongoose.connection.close();
@@ -149,7 +143,6 @@ const startServer = async (): Promise<void> => {
 
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
   } catch (error) {
     logger.error('Server startup failed', { error });
     process.exit(1);

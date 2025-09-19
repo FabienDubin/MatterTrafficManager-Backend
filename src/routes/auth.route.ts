@@ -2,24 +2,13 @@ import { Router } from 'express';
 import { authController } from '../controllers/auth.controller';
 import { validate } from '../middleware/validation.middleware';
 import { authenticate, requireAdmin } from '../middleware/auth.middleware';
+import { authRateLimiter } from '../middleware/rate-limit.middleware';
 import { 
   loginSchema, 
   refreshTokenSchema, 
   logoutSchema, 
   createUserSchema 
 } from '../validators/auth.validator';
-import rateLimit from 'express-rate-limit';
-
-/**
- * Rate limiter for login attempts
- */
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 requests per window
-  message: 'Too many login attempts, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
 
 /**
  * Authentication routes
@@ -75,7 +64,7 @@ const router = Router();
  */
 router.post(
   '/login',
-  loginLimiter,
+  authRateLimiter,
   validate(loginSchema),
   authController.login
 );

@@ -22,10 +22,7 @@ export interface ISyncSettings extends Document {
     backoffMultiplier: number;
     initialDelayMs: number;
   };
-  rateLimitConfig: {
-    requestsPerSecond: number;
-    burstLimit: number;
-  };
+  // Rate limit config removed - handled by middleware and service throttle
   createdAt: Date;
   updatedAt: Date;
 }
@@ -160,22 +157,7 @@ const SyncSettingsSchema: Schema = new Schema(
         max: 10000,
       }
     },
-    rateLimitConfig: {
-      requestsPerSecond: {
-        type: Number,
-        required: true,
-        default: 3,
-        min: 1,
-        max: 10,
-      },
-      burstLimit: {
-        type: Number,
-        required: true,
-        default: 5,
-        min: 1,
-        max: 20,
-      }
-    }
+    // Rate limit config removed - handled by middleware and service throttle
   },
   {
     timestamps: true,

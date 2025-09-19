@@ -25,17 +25,24 @@ export const webhookAuthMiddleware = async (
     // Get the active Notion config with webhook verification token
     const config = await NotionConfigModel.findOne({ isActive: true });
     
-    if (!config || !config.webhookVerificationToken) {
-      console.error('❌ Webhook verification token not configured');
-      res.status(500).json({ 
-        error: 'Webhook not configured',
-        code: 'WEBHOOK_NOT_CONFIGURED' 
-      });
-      return;
+    let verificationToken: string | null = null;
+    
+    // Try to get token from database first
+    if (config?.webhookVerificationToken) {
+      try {
+        verificationToken = config.decryptWebhookToken();
+      } catch (error) {
+        console.warn('⚠️ Failed to decrypt token from database:', error);
+      }
     }
-
-    // Decrypt the verification token
-    const verificationToken = config.decryptWebhookToken();
+    
+    // Fallback to environment variable if database token not available
+    if (!verificationToken) {
+      verificationToken = process.env.WEBHOOK_VERIFICATION_TOKEN || null;
+      if (verificationToken) {
+        console.log('📌 Using webhook token from environment variable');
+      }
+    }
     
     if (!verificationToken) {
       console.error('❌ Failed to decrypt webhook verification token');
