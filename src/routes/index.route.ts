@@ -6,6 +6,7 @@ import notionConfigRouter from './notion-config.route';
 import notionMappingRouter from './notion-mapping.route';
 import notionDiscoveryRouter from './notion-discovery.route';
 import webhookRouter from './webhook.route';
+import tasksRouter from './tasks.route';
 
 const router = Router();
 
@@ -23,6 +24,7 @@ router.get('/', (_, res) => {
       health: '/api/v1/health',
       auth: '/api/v1/auth',
       notion: '/api/v1/notion',
+      tasks: '/api/v1/tasks',
       admin: {
         notionConfig: '/api/v1/admin/notion-config',
         notionMapping: '/api/v1/admin/notion-mapping',
@@ -41,6 +43,9 @@ router.use('/auth', authRouter);
 
 // Notion API routes
 router.use('/notion', notionRouter);
+
+// Tasks routes
+router.use('/tasks', tasksRouter);
 
 // Admin routes - Notion configuration
 router.use('/admin/notion-config', notionConfigRouter);

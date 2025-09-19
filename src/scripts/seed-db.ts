@@ -19,10 +19,10 @@ async function validateNotionConnection() {
   try {
     const result = await notionService.validateAllDatabases();
     
-    if (!result.success) {
+    if (!result.valid) {
       logger.error('❌ Some Notion databases are not accessible');
       Object.entries(result.databases).forEach(([name, info]: [string, any]) => {
-        if (!info.accessible) {
+        if (!info.exists) {
           logger.error(`  - ${name}: ${info.error}`);
         }
       });

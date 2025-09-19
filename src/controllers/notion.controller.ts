@@ -9,8 +9,8 @@ class NotionController {
       const validation = await notionService.validateAllDatabases();
       
       res.json({
-        success: validation.success,
-        message: validation.success 
+        success: validation.valid,
+        message: validation.valid 
           ? 'All Notion databases are accessible' 
           : 'Some databases are not accessible',
         databases: validation.databases,
@@ -246,9 +246,9 @@ class NotionController {
       });
 
       logger.info('Filters test completed', {
-        inProgressProjects: inProgressProjects.results.length,
-        thisWeekTasks: thisWeekTasks.results.length,
-        completedTasks: completedTasks.results.length
+        inProgressProjects: (inProgressProjects as any).results?.length || 0,
+        thisWeekTasks: thisWeekTasks.length,
+        completedTasks: completedTasks.length
       });
 
       res.json({
@@ -256,24 +256,24 @@ class NotionController {
         message: 'Filters and complex queries tested successfully',
         results: {
           projectsInProgress: {
-            count: inProgressProjects.results.length,
-            projects: inProgressProjects.results.slice(0, 3).map(p => ({
+            count: (inProgressProjects as any).results?.length || 0,
+            projects: ((inProgressProjects as any).results || []).slice(0, 3).map((p: any) => ({
               id: p.id,
               name: p.name,
               status: p.status
             }))
           },
           tasksThisWeek: {
-            count: thisWeekTasks.results.length,
-            sample: thisWeekTasks.results.slice(0, 3).map(t => ({
+            count: thisWeekTasks.length,
+            sample: thisWeekTasks.slice(0, 3).map((t: any) => ({
               id: t.id,
               title: t.title,
               period: t.workPeriod
             }))
           },
           completedTasks: {
-            count: completedTasks.results.length,
-            sample: completedTasks.results.slice(0, 3).map(t => ({
+            count: completedTasks.length,
+            sample: completedTasks.slice(0, 3).map((t: any) => ({
               id: t.id,
               title: t.title,
               status: t.status
