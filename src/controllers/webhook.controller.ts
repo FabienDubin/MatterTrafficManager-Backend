@@ -253,6 +253,7 @@ export class WebhookController {
       switch (entityType) {
         case 'Task':
           patterns.push('tasks:*');
+          patterns.push('tasks:calendar:*'); // Invalidate calendar cache specifically
           if (entityId) patterns.push(`task:${entityId}`);
           break;
         case 'Project':
