@@ -4,12 +4,10 @@ import { NotionAPIError } from '../errors/NotionAPIError';
 import logger from '../config/logger.config';
 
 // Import specialized services
-import {
-  taskService,
-  calendarService,
-  entityService,
-  cacheManagerService
-} from './notion';
+import { taskService } from './notion/task.service';
+import { calendarService } from './notion/calendar.service';
+import { entityService } from './notion/entity.service';
+import { cacheManagerService } from './notion/cache-manager.service';
 
 // Import types
 import type {
