@@ -11,6 +11,23 @@ export const webhookAuthMiddleware = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    // Check if this is the initial verification request from Notion
+    if (req.body.verification_token) {
+      console.log('📨 Initial webhook verification request detected');
+      console.log('🔑 Verification token:', req.body.verification_token);
+      console.log('⚠️ IMPORTANT: Save this token in WEBHOOK_VERIFICATION_TOKEN environment variable');
+      
+      // Log to Azure Application Insights if available
+      if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
+        console.log('📊 Token logged to Application Insights');
+      }
+      
+      // Let the request through without HMAC validation
+      // The controller will handle storing the token if needed
+      next();
+      return;
+    }
+
     // Get the signature from headers
     const signature = req.headers['x-notion-signature'] as string;
     
@@ -45,7 +62,8 @@ export const webhookAuthMiddleware = async (
     }
     
     if (!verificationToken) {
-      console.error('❌ Failed to decrypt webhook verification token');
+      console.error('❌ No webhook verification token configured');
+      console.error('   Set WEBHOOK_VERIFICATION_TOKEN env variable with the token from Notion');
       res.status(500).json({ 
         error: 'Invalid webhook configuration',
         code: 'INVALID_WEBHOOK_CONFIG' 

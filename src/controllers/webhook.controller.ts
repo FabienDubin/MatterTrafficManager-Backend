@@ -16,6 +16,31 @@ export class WebhookController {
     const startTime = Date.now();
     
     try {
+      // Check if this is the initial verification request
+      if (req.body.verification_token) {
+        console.log('\n' + '🎉'.repeat(30));
+        console.log('✅ NOTION WEBHOOK VERIFICATION TOKEN RECEIVED!');
+        console.log('='.repeat(60));
+        console.log('📝 Token:', req.body.verification_token);
+        console.log('='.repeat(60));
+        console.log('⚠️ IMPORTANT STEPS:');
+        console.log('1. Copy the token above');
+        console.log('2. Add it to Azure App Service Configuration:');
+        console.log('   - Name: WEBHOOK_VERIFICATION_TOKEN');
+        console.log('   - Value: [paste the token]');
+        console.log('3. Restart the App Service');
+        console.log('4. The webhook will be ready to receive events');
+        console.log('🎉'.repeat(30) + '\n');
+        
+        // Respond with success for verification
+        res.status(200).json({ 
+          received: true,
+          verification: true,
+          message: 'Token captured. Please add it to environment variables.'
+        });
+        return;
+      }
+
       // Respond immediately to meet 3-second timeout requirement
       res.status(200).json({ received: true });
 
