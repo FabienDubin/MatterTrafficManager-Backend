@@ -56,13 +56,16 @@ export class TasksController {
         endDateObj
       );
 
-      // Format response
-      // Note: Cache hit info would need to be tracked differently if needed
-      // For now, we'll assume cache is working based on the service implementation
+      // Enrichir les données avec le batch resolver
+      const { resolvedTasks } = await notionService.batchResolveRelations({
+        tasks
+      });
+
+      // Format response avec les données enrichies
       return res.status(200).json({
         success: true,
         data: {
-          tasks: tasks,
+          tasks: resolvedTasks,
           cacheHit: true, // Calendar service uses cache by default
           period: {
             start: startDate,
@@ -70,7 +73,7 @@ export class TasksController {
           }
         },
         meta: {
-          count: tasks.length,
+          count: resolvedTasks.length,
           cached: true,
           timestamp: new Date().toISOString()
         }

@@ -6,14 +6,14 @@ import {
   notionPageToUser,
   notionPageToProject,
   notionPageToClient,
-  notionPageToTeam
+  notionPageToTeam,
 } from '../../mappers/notion.mapper';
 import {
-  NotionUser,
+  NotionMember,
   NotionProject,
   NotionClient,
   NotionTeam,
-  DatabaseQueryResult
+  DatabaseQueryResult,
 } from '../../types/notion.types';
 import logger from '../../config/logger.config';
 
@@ -22,7 +22,7 @@ import logger from '../../config/logger.config';
  */
 export class EntityService extends NotionBaseService {
   // ============= USERS =============
-  
+
   /**
    * Query users database with pagination and caching
    */
@@ -30,40 +30,37 @@ export class EntityService extends NotionBaseService {
     cursor?: string,
     pageSize = 100,
     options: { forceRefresh?: boolean; skipCache?: boolean } = {}
-  ): Promise<DatabaseQueryResult<NotionUser>> {
+  ): Promise<DatabaseQueryResult<NotionMember>> {
     const cacheKey = this.generateCacheKey('users', 'list', { cursor, pageSize });
-    
-    return await cacheManagerService.getCachedOrFetch<DatabaseQueryResult<NotionUser>>(
+
+    return await cacheManagerService.getCachedOrFetch<DatabaseQueryResult<NotionMember>>(
       cacheKey,
       'users',
       async () => {
         const queryParams: any = {
           database_id: DATABASES.users,
-          page_size: pageSize
+          page_size: pageSize,
         };
-        
+
         if (cursor) {
           queryParams.start_cursor = cursor;
         }
-        
-        const response = await retryWithBackoff(
-          () => this.throttledNotionCall(
-            () => notion.databases.query(queryParams),
-            'queryUsersDatabase'
-          )
+
+        const response = await retryWithBackoff(() =>
+          this.throttledNotionCall(() => notion.databases.query(queryParams), 'queryUsersDatabase')
         );
 
         const users = response.results.map(notionPageToUser);
-        
+
         logger.info('Users database queried successfully', {
           count: users.length,
-          hasMore: response.has_more
+          hasMore: response.has_more,
         });
-        
+
         return {
           results: users,
           hasMore: response.has_more,
-          nextCursor: response.next_cursor
+          nextCursor: response.next_cursor,
         };
       },
       options
@@ -73,24 +70,24 @@ export class EntityService extends NotionBaseService {
   /**
    * Get all users (handles pagination)
    */
-  async getAllUsers(): Promise<NotionUser[]> {
+  async getAllUsers(): Promise<NotionMember[]> {
     const cacheKey = 'users:all';
-    
-    return await cacheManagerService.getCachedOrFetch<NotionUser[]>(
+
+    return await cacheManagerService.getCachedOrFetch<NotionMember[]>(
       cacheKey,
       'users',
       async () => {
-        let allUsers: NotionUser[] = [];
+        let allUsers: NotionMember[] = [];
         let cursor: string | undefined = undefined;
         let hasMore = true;
-        
+
         while (hasMore) {
           const result = await this.queryUsersDatabase(cursor);
           allUsers = allUsers.concat(result.results);
           hasMore = result.hasMore;
           cursor = result.nextCursor || undefined;
         }
-        
+
         logger.info(`Retrieved all users: ${allUsers.length} total`);
         return allUsers;
       }
@@ -98,7 +95,7 @@ export class EntityService extends NotionBaseService {
   }
 
   // ============= PROJECTS =============
-  
+
   /**
    * Query projects database with pagination and optional filters
    */
@@ -108,21 +105,21 @@ export class EntityService extends NotionBaseService {
     pageSize = 100,
     options: { forceRefresh?: boolean; skipCache?: boolean } = {}
   ): Promise<DatabaseQueryResult<NotionProject>> {
-    const cacheKey = this.generateCacheKey('projects', 'list', { 
+    const cacheKey = this.generateCacheKey('projects', 'list', {
       status: filters?.status,
-      cursor, 
-      pageSize 
+      cursor,
+      pageSize,
     });
-    
+
     return await cacheManagerService.getCachedOrFetch<DatabaseQueryResult<NotionProject>>(
       cacheKey,
       'projects',
       async () => {
         const queryParams: any = {
           database_id: DATABASES.projects,
-          page_size: pageSize
+          page_size: pageSize,
         };
-        
+
         if (cursor) {
           queryParams.start_cursor = cursor;
         }
@@ -131,24 +128,24 @@ export class EntityService extends NotionBaseService {
           queryParams.filter = {
             property: 'Statut du projet',
             select: {
-              equals: filters.status
-            }
+              equals: filters.status,
+            },
           };
         }
 
-        const response = await retryWithBackoff(
-          () => this.throttledNotionCall(
+        const response = await retryWithBackoff(() =>
+          this.throttledNotionCall(
             () => notion.databases.query(queryParams),
             'queryProjectsDatabase'
           )
         );
 
         const projects = response.results.map(notionPageToProject);
-        
+
         return {
           results: projects,
           hasMore: response.has_more,
-          nextCursor: response.next_cursor
+          nextCursor: response.next_cursor,
         };
       },
       options
@@ -160,7 +157,7 @@ export class EntityService extends NotionBaseService {
    */
   async getAllProjects(filters?: { status?: string }): Promise<NotionProject[]> {
     const cacheKey = this.generateCacheKey('projects', 'all', filters || {});
-    
+
     return await cacheManagerService.getCachedOrFetch<NotionProject[]>(
       cacheKey,
       'projects',
@@ -168,14 +165,14 @@ export class EntityService extends NotionBaseService {
         let allProjects: NotionProject[] = [];
         let cursor: string | undefined = undefined;
         let hasMore = true;
-        
+
         while (hasMore) {
           const result = await this.queryProjectsDatabase(filters, cursor);
           allProjects = allProjects.concat(result.results);
           hasMore = result.hasMore;
           cursor = result.nextCursor || undefined;
         }
-        
+
         logger.info(`Retrieved all projects: ${allProjects.length} total`);
         return allProjects;
       }
@@ -183,7 +180,7 @@ export class EntityService extends NotionBaseService {
   }
 
   // ============= CLIENTS =============
-  
+
   /**
    * Query clients database with pagination
    */
@@ -193,33 +190,33 @@ export class EntityService extends NotionBaseService {
     options: { forceRefresh?: boolean; skipCache?: boolean } = {}
   ): Promise<DatabaseQueryResult<NotionClient>> {
     const cacheKey = this.generateCacheKey('clients', 'list', { cursor, pageSize });
-    
+
     return await cacheManagerService.getCachedOrFetch<DatabaseQueryResult<NotionClient>>(
       cacheKey,
       'clients',
       async () => {
         const queryParams: any = {
           database_id: DATABASES.clients,
-          page_size: pageSize
+          page_size: pageSize,
         };
-        
+
         if (cursor) {
           queryParams.start_cursor = cursor;
         }
-        
-        const response = await retryWithBackoff(
-          () => this.throttledNotionCall(
+
+        const response = await retryWithBackoff(() =>
+          this.throttledNotionCall(
             () => notion.databases.query(queryParams),
             'queryClientsDatabase'
           )
         );
 
         const clients = response.results.map(notionPageToClient);
-        
+
         return {
           results: clients,
           hasMore: response.has_more,
-          nextCursor: response.next_cursor
+          nextCursor: response.next_cursor,
         };
       },
       options
@@ -231,7 +228,7 @@ export class EntityService extends NotionBaseService {
    */
   async getAllClients(): Promise<NotionClient[]> {
     const cacheKey = 'clients:all';
-    
+
     return await cacheManagerService.getCachedOrFetch<NotionClient[]>(
       cacheKey,
       'clients',
@@ -239,14 +236,14 @@ export class EntityService extends NotionBaseService {
         let allClients: NotionClient[] = [];
         let cursor: string | undefined = undefined;
         let hasMore = true;
-        
+
         while (hasMore) {
           const result = await this.queryClientsDatabase(cursor);
           allClients = allClients.concat(result.results);
           hasMore = result.hasMore;
           cursor = result.nextCursor || undefined;
         }
-        
+
         logger.info(`Retrieved all clients: ${allClients.length} total`);
         return allClients;
       }
@@ -254,7 +251,7 @@ export class EntityService extends NotionBaseService {
   }
 
   // ============= TEAMS =============
-  
+
   /**
    * Query teams database with pagination
    */
@@ -264,33 +261,30 @@ export class EntityService extends NotionBaseService {
     options: { forceRefresh?: boolean; skipCache?: boolean } = {}
   ): Promise<DatabaseQueryResult<NotionTeam>> {
     const cacheKey = this.generateCacheKey('teams', 'list', { cursor, pageSize });
-    
+
     return await cacheManagerService.getCachedOrFetch<DatabaseQueryResult<NotionTeam>>(
       cacheKey,
       'teams',
       async () => {
         const queryParams: any = {
           database_id: DATABASES.teams,
-          page_size: pageSize
+          page_size: pageSize,
         };
-        
+
         if (cursor) {
           queryParams.start_cursor = cursor;
         }
-        
-        const response = await retryWithBackoff(
-          () => this.throttledNotionCall(
-            () => notion.databases.query(queryParams),
-            'queryTeamsDatabase'
-          )
+
+        const response = await retryWithBackoff(() =>
+          this.throttledNotionCall(() => notion.databases.query(queryParams), 'queryTeamsDatabase')
         );
 
         const teams = response.results.map(notionPageToTeam);
-        
+
         return {
           results: teams,
           hasMore: response.has_more,
-          nextCursor: response.next_cursor
+          nextCursor: response.next_cursor,
         };
       },
       options
@@ -302,30 +296,26 @@ export class EntityService extends NotionBaseService {
    */
   async getAllTeams(): Promise<NotionTeam[]> {
     const cacheKey = 'teams:all';
-    
-    return await cacheManagerService.getCachedOrFetch<NotionTeam[]>(
-      cacheKey,
-      'teams',
-      async () => {
-        let allTeams: NotionTeam[] = [];
-        let cursor: string | undefined = undefined;
-        let hasMore = true;
-        
-        while (hasMore) {
-          const result = await this.queryTeamsDatabase(cursor);
-          allTeams = allTeams.concat(result.results);
-          hasMore = result.hasMore;
-          cursor = result.nextCursor || undefined;
-        }
-        
-        logger.info(`Retrieved all teams: ${allTeams.length} total`);
-        return allTeams;
+
+    return await cacheManagerService.getCachedOrFetch<NotionTeam[]>(cacheKey, 'teams', async () => {
+      let allTeams: NotionTeam[] = [];
+      let cursor: string | undefined = undefined;
+      let hasMore = true;
+
+      while (hasMore) {
+        const result = await this.queryTeamsDatabase(cursor);
+        allTeams = allTeams.concat(result.results);
+        hasMore = result.hasMore;
+        cursor = result.nextCursor || undefined;
       }
-    );
+
+      logger.info(`Retrieved all teams: ${allTeams.length} total`);
+      return allTeams;
+    });
   }
 
   // ============= CACHE MANAGEMENT =============
-  
+
   /**
    * Invalidate all entity caches
    */
@@ -334,7 +324,7 @@ export class EntityService extends NotionBaseService {
       cacheManagerService.invalidateCachePattern('users:*'),
       cacheManagerService.invalidateCachePattern('projects:*'),
       cacheManagerService.invalidateCachePattern('clients:*'),
-      cacheManagerService.invalidateCachePattern('teams:*')
+      cacheManagerService.invalidateCachePattern('teams:*'),
     ]);
     logger.info('All entity caches invalidated');
   }
@@ -344,14 +334,14 @@ export class EntityService extends NotionBaseService {
    */
   async warmupEntityCaches(): Promise<void> {
     logger.info('Warming up entity caches...');
-    
+
     await Promise.all([
       this.queryUsersDatabase(undefined, 20),
       this.queryProjectsDatabase(undefined, undefined, 20),
       this.queryTeamsDatabase(undefined, 10),
-      this.queryClientsDatabase(undefined, 10)
+      this.queryClientsDatabase(undefined, 10),
     ]);
-    
+
     logger.info('Entity cache warmup completed');
   }
 }

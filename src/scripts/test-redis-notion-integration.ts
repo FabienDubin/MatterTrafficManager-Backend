@@ -110,7 +110,7 @@ async function testCompleteIntegration() {
         console.log(`   ├── Project: ${task.projectId || 'N/A'}`);
         console.log(`   ├── Assigned Members: ${task.assignedMembers?.join(', ') || 'N/A'}`);
         console.log(`   ├── Client: ${task.client || 'N/A'}`);
-        console.log(`   ├── Team: ${task.team || 'N/A'}`);
+        console.log(`   ├── Teams: ${task.teams?.join(', ') || 'N/A'}`);
         console.log(`   └── Last updated: ${task.updatedAt}`);
       }
       
@@ -163,7 +163,7 @@ async function testCompleteIntegration() {
       console.log(`   ├── Project ID: ${taskFromAPI.projectId || 'N/A'}`);
       console.log(`   ├── Assigned Members: ${taskFromAPI.assignedMembers?.join(', ') || 'N/A'}`);
       console.log(`   ├── Client: ${taskFromAPI.client || 'N/A'}`);
-      console.log(`   ├── Team: ${taskFromAPI.team || 'N/A'}`);
+      console.log(`   ├── Teams: ${taskFromAPI.teams?.join(', ') || 'N/A'}`);
       console.log(`   ├── Billed Hours: ${taskFromAPI.billedHours || 'N/A'}`);
       console.log(`   ├── Actual Hours: ${taskFromAPI.actualHours || 'N/A'}`);
       console.log(`   ├── Add to Calendar: ${taskFromAPI.addToCalendar}`);

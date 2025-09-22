@@ -70,7 +70,7 @@ class NotionController {
             assignedMembersCount: readTask.assignedMembers.length,
             hasProject: !!readTask.projectId,
             hasClient: !!readTask.client,
-            hasTeam: !!readTask.team
+            hasTeam: readTask.teams && readTask.teams.length > 0
           }
         }
       };
@@ -194,7 +194,7 @@ class NotionController {
           taskId: task.id,
           taskTitle: task.title,
           clientRollup: task.client,
-          teamRollup: task.team
+          teamRollup: task.teams
         }))
       };
 
@@ -343,7 +343,7 @@ class NotionController {
         },
         rollupFields: {
           client: { value: mappedTask.client, isReadOnly: true },
-          team: { value: mappedTask.team, isReadOnly: true }
+          teams: { value: mappedTask.teams, isReadOnly: true } // Changed to teams array
         }
       };
 

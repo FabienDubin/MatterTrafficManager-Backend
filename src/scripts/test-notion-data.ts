@@ -120,7 +120,7 @@ async function testNotionData() {
         console.log('   ├── ID:', user.id);
         console.log('   ├── Name:', user.name);
         console.log('   ├── Email:', user.email);
-        console.log('   ├── Team ID:', user.team);
+        console.log('   ├── Teams:', user.teams?.join(', ') || 'None');
         console.log('   └── Tasks:', user.tasks?.length || 0, 'tâche(s)');
       }
 

@@ -1,16 +1,16 @@
 import {
   NotionTask,
-  NotionUser,
+  NotionMember,
   NotionProject,
   NotionClient,
-  NotionTeam
+  NotionTeam,
 } from '../types/notion.types';
 import {
   TASK_PROPERTY_IDS,
   USER_PROPERTY_IDS,
   PROJECT_PROPERTY_IDS,
   CLIENT_PROPERTY_IDS,
-  TEAM_PROPERTY_IDS
+  TEAM_PROPERTY_IDS,
 } from '../config/notion.config';
 import logger from '../config/logger.config';
 
@@ -37,17 +37,18 @@ export function extractCheckbox(property: any): boolean {
 }
 
 export function extractSelect(property: any): string | null {
-  return property?.select?.name ?? null;
+  // Handle both select and status property types
+  return property?.select?.name ?? property?.status?.name ?? null;
 }
 
 export function extractDate(property: any): { start: Date | null; end: Date | null } {
   if (!property?.date) {
     return { start: null, end: null };
   }
-  
+
   return {
     start: property.date.start ? new Date(property.date.start) : null,
-    end: property.date.end ? new Date(property.date.end) : null
+    end: property.date.end ? new Date(property.date.end) : null,
   };
 }
 
@@ -58,6 +59,23 @@ export function extractRelationIds(property: any): string[] {
   return property.relation.map((rel: any) => rel.id);
 }
 
+export function extractRollupRelationIds(property: any): string[] {
+  if (!property?.rollup?.array || !Array.isArray(property.rollup.array)) {
+    return [];
+  }
+  
+  const ids: string[] = [];
+  property.rollup.array.forEach((item: any) => {
+    if (item?.relation && Array.isArray(item.relation)) {
+      item.relation.forEach((rel: any) => {
+        if (rel?.id) ids.push(rel.id);
+      });
+    }
+  });
+  
+  return ids;
+}
+
 export function extractEmail(property: any): string {
   return property?.email || '';
 }
@@ -65,13 +83,13 @@ export function extractEmail(property: any): string {
 export function notionPageToTask(page: any): NotionTask {
   const props = page.properties;
   const dateRange = extractDate(props[TASK_PROPERTY_IDS.workPeriod]);
-  
+
   const task: NotionTask = {
     id: page.id,
     title: extractTitle(props[TASK_PROPERTY_IDS.title]),
     workPeriod: {
       startDate: dateRange.start,
-      endDate: dateRange.end
+      endDate: dateRange.end,
     },
     assignedMembers: extractRelationIds(props[TASK_PROPERTY_IDS.assignedMembers]),
     projectId: extractRelationIds(props[TASK_PROPERTY_IDS.projectId])[0] || null,
@@ -84,61 +102,61 @@ export function notionPageToTask(page: any): NotionTask {
     googleEventId: extractRichText(props[TASK_PROPERTY_IDS.googleEventId]) || null,
     clientPlanning: extractCheckbox(props[TASK_PROPERTY_IDS.clientPlanning]),
     client: extractRichText(props[TASK_PROPERTY_IDS.client]) || null,
-    team: extractRichText(props[TASK_PROPERTY_IDS.team]) || null,
+    teams: extractRollupRelationIds(props[TASK_PROPERTY_IDS.team]), // Changed to use rollup extractor for teams array
     createdAt: new Date(page.created_time),
-    updatedAt: new Date(page.last_edited_time)
+    updatedAt: new Date(page.last_edited_time),
   };
 
-  logger.debug('Mapped Notion page to task', { 
-    taskId: task.id, 
+  logger.debug('Mapped Notion page to task', {
+    taskId: task.id,
     title: task.title,
-    assignedCount: task.assignedMembers.length 
+    assignedCount: task.assignedMembers.length,
   });
 
   return task;
 }
 
-export function notionPageToUser(page: any): NotionUser {
+export function notionPageToUser(page: any): NotionMember {
   const props = page.properties;
-  
+
   return {
     id: page.id,
     name: extractTitle(props[USER_PROPERTY_IDS.title]),
     email: extractEmail(props[USER_PROPERTY_IDS.email]),
-    team: extractRelationIds(props[USER_PROPERTY_IDS.team])[0] || null,
-    tasks: extractRelationIds(props[USER_PROPERTY_IDS.tasks])
+    teams: extractRelationIds(props[USER_PROPERTY_IDS.team]), // Changed to return all team IDs
+    tasks: extractRelationIds(props[USER_PROPERTY_IDS.tasks]),
   };
 }
 
 export function notionPageToProject(page: any): NotionProject {
   const props = page.properties;
-  
+
   return {
     id: page.id,
     name: extractTitle(props[PROJECT_PROPERTY_IDS.title]),
     client: extractRelationIds(props[PROJECT_PROPERTY_IDS.client])[0] || null,
     status: extractSelect(props[PROJECT_PROPERTY_IDS.status]) || 'not_started',
-    tasks: extractRelationIds(props[PROJECT_PROPERTY_IDS.tasks])
+    tasks: extractRelationIds(props[PROJECT_PROPERTY_IDS.tasks]),
   };
 }
 
 export function notionPageToClient(page: any): NotionClient {
   const props = page.properties;
-  
+
   return {
     id: page.id,
     name: extractTitle(props[CLIENT_PROPERTY_IDS.title]),
-    projects: extractRelationIds(props[CLIENT_PROPERTY_IDS.projects])
+    projects: extractRelationIds(props[CLIENT_PROPERTY_IDS.projects]),
   };
 }
 
 export function notionPageToTeam(page: any): NotionTeam {
   const props = page.properties;
-  
+
   return {
     id: page.id,
     name: extractTitle(props[TEAM_PROPERTY_IDS.title]),
-    members: extractRelationIds(props[TEAM_PROPERTY_IDS.members])
+    members: extractRelationIds(props[TEAM_PROPERTY_IDS.members]),
   };
 }
 
@@ -147,7 +165,7 @@ export function createNotionTaskProperties(input: any) {
 
   if (input.title !== undefined) {
     properties[TASK_PROPERTY_IDS.title] = {
-      title: [{ text: { content: input.title } }]
+      title: [{ text: { content: input.title } }],
     };
   }
 
@@ -155,62 +173,62 @@ export function createNotionTaskProperties(input: any) {
     properties[TASK_PROPERTY_IDS.workPeriod] = {
       date: {
         start: input.workPeriod.startDate,
-        end: input.workPeriod.endDate
-      }
+        end: input.workPeriod.endDate,
+      },
     };
   }
 
   if (input.assignedMembers !== undefined) {
     properties[TASK_PROPERTY_IDS.assignedMembers] = {
-      relation: input.assignedMembers.map((id: string) => ({ id }))
+      relation: input.assignedMembers.map((id: string) => ({ id })),
     };
   }
 
   if (input.projectId !== undefined) {
     properties[TASK_PROPERTY_IDS.projectId] = {
-      relation: input.projectId ? [{ id: input.projectId }] : []
+      relation: input.projectId ? [{ id: input.projectId }] : [],
     };
   }
 
   if (input.taskType !== undefined) {
     properties[TASK_PROPERTY_IDS.taskType] = {
-      select: { name: input.taskType }
+      select: { name: input.taskType },
     };
   }
 
   if (input.status !== undefined) {
     properties[TASK_PROPERTY_IDS.status] = {
-      select: { name: input.status }
+      select: { name: input.status },
     };
   }
 
   if (input.notes !== undefined) {
     properties[TASK_PROPERTY_IDS.notes] = {
-      rich_text: [{ text: { content: input.notes } }]
+      rich_text: [{ text: { content: input.notes } }],
     };
   }
 
   if (input.billedHours !== undefined) {
     properties[TASK_PROPERTY_IDS.billedHours] = {
-      number: input.billedHours
+      number: input.billedHours,
     };
   }
 
   if (input.actualHours !== undefined) {
     properties[TASK_PROPERTY_IDS.actualHours] = {
-      number: input.actualHours
+      number: input.actualHours,
     };
   }
 
   if (input.addToCalendar !== undefined) {
     properties[TASK_PROPERTY_IDS.addToCalendar] = {
-      checkbox: input.addToCalendar
+      checkbox: input.addToCalendar,
     };
   }
 
   if (input.clientPlanning !== undefined) {
     properties[TASK_PROPERTY_IDS.clientPlanning] = {
-      checkbox: input.clientPlanning
+      checkbox: input.clientPlanning,
     };
   }
 

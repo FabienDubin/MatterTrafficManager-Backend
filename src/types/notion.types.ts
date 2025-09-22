@@ -16,16 +16,16 @@ export interface NotionTask {
   googleEventId: string | null;
   clientPlanning: boolean;
   client: string | null;
-  team: string | null;
+  teams: string[]; // Changed from team: string | null to support multiple teams from rollup
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface NotionUser {
+export interface NotionMember {
   id: string;
   name: string;
   email: string;
-  team: string | null;
+  teams: string[]; // Changed from team: string | null to support multiple teams
   tasks: string[];
 }
 

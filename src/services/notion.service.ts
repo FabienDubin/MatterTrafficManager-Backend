@@ -8,17 +8,19 @@ import { taskService } from './notion/task.service';
 import { calendarService } from './notion/calendar.service';
 import { entityService } from './notion/entity.service';
 import { cacheManagerService } from './notion/cache-manager.service';
+import { BatchResolverService } from './batch-resolver.service';
+import { RedisService } from './redis.service';
 
 // Import types
 import type {
   NotionTask,
-  NotionUser,
+  NotionMember,
   NotionProject,
   NotionClient,
   NotionTeam,
   DatabaseQueryResult,
   CreateTaskInput,
-  UpdateTaskInput
+  UpdateTaskInput,
 } from '../types/notion.types';
 
 /**
@@ -26,14 +28,22 @@ import type {
  * Delegates to specialized services while maintaining backward compatibility
  */
 class NotionService {
+  private batchResolver: BatchResolverService;
+  private redisService: RedisService;
+
+  constructor() {
+    this.redisService = new RedisService();
+    this.batchResolver = new BatchResolverService(this.redisService, this);
+  }
+
   // ============= CONNECTION & HEALTH =============
-  
+
   async testConnection(): Promise<boolean> {
     try {
       await retryWithBackoff(
         async () => {
-          const response = await notion.databases.retrieve({ 
-            database_id: DATABASES.traffic 
+          const response = await notion.databases.retrieve({
+            database_id: DATABASES.traffic,
           });
           return response;
         },
@@ -41,7 +51,7 @@ class NotionService {
         1000,
         'testConnection'
       );
-      
+
       logger.info('Notion connection test successful');
       return true;
     } catch (error) {
@@ -56,32 +66,34 @@ class NotionService {
     const requests = 10;
 
     try {
-      const calls = Array(requests).fill(null).map(() => 
-        this.testConnection().catch(() => {
-          errors++;
-          return false;
-        })
-      );
-      
+      const calls = Array(requests)
+        .fill(null)
+        .map(() =>
+          this.testConnection().catch(() => {
+            errors++;
+            return false;
+          })
+        );
+
       await Promise.all(calls);
-      
+
       const timeTaken = Date.now() - startTime;
       const success = errors === 0;
-      
+
       logger.info('Rate limit test completed', {
         requests,
         errors,
         timeTaken,
-        avgPerRequest: timeTaken / requests
+        avgPerRequest: timeTaken / requests,
       });
-      
+
       return { success, timeTaken, errors };
     } catch (error) {
       logger.error('Rate limit test failed', error);
-      return { 
-        success: false, 
-        timeTaken: Date.now() - startTime, 
-        errors: requests 
+      return {
+        success: false,
+        timeTaken: Date.now() - startTime,
+        errors: requests,
       };
     }
   }
@@ -91,33 +103,36 @@ class NotionService {
     databases: Record<string, { exists: boolean; error?: string }>;
   }> {
     const results: Record<string, { exists: boolean; error?: string }> = {};
-    
+
     for (const [name, id] of Object.entries(DATABASES)) {
       try {
         await notion.databases.retrieve({ database_id: id });
         results[name] = { exists: true };
       } catch (error: any) {
-        results[name] = { 
-          exists: false, 
-          error: error.message || 'Unknown error' 
+        results[name] = {
+          exists: false,
+          error: error.message || 'Unknown error',
         };
       }
     }
-    
+
     const valid = Object.values(results).every(r => r.exists);
-    
+
     logger.info('Database validation completed', { valid, results });
-    
+
     return { valid, databases: results };
   }
 
   // ============= TASK OPERATIONS (delegate to taskService) =============
-  
+
   async createTask(input: CreateTaskInput): Promise<NotionTask> {
     return taskService.createTask(input);
   }
 
-  async getTask(taskId: string, options?: { forceRefresh?: boolean; skipCache?: boolean }): Promise<NotionTask> {
+  async getTask(
+    taskId: string,
+    options?: { forceRefresh?: boolean; skipCache?: boolean }
+  ): Promise<NotionTask> {
     return taskService.getTask(taskId, options);
   }
 
@@ -129,7 +144,10 @@ class NotionService {
     return taskService.archiveTask(taskId);
   }
 
-  async queryTrafficDatabase(cursor?: string, pageSize?: number): Promise<DatabaseQueryResult<NotionTask>> {
+  async queryTrafficDatabase(
+    cursor?: string,
+    pageSize?: number
+  ): Promise<DatabaseQueryResult<NotionTask>> {
     return taskService.queryTrafficDatabase(cursor, pageSize);
   }
 
@@ -142,8 +160,12 @@ class NotionService {
   }
 
   // ============= CALENDAR OPERATIONS (delegate to calendarService) =============
-  
-  async getTasksForCalendarView(startDate: Date, endDate: Date, options?: any): Promise<NotionTask[]> {
+
+  async getTasksForCalendarView(
+    startDate: Date,
+    endDate: Date,
+    options?: any
+  ): Promise<NotionTask[]> {
     return calendarService.getTasksForCalendarView(startDate, endDate, options);
   }
 
@@ -172,16 +194,25 @@ class NotionService {
   }
 
   // ============= ENTITY OPERATIONS (delegate to entityService) =============
-  
-  async queryUsersDatabase(cursor?: string, pageSize?: number, options?: any): Promise<DatabaseQueryResult<NotionUser>> {
+
+  async queryUsersDatabase(
+    cursor?: string,
+    pageSize?: number,
+    options?: any
+  ): Promise<DatabaseQueryResult<NotionMember>> {
     return entityService.queryUsersDatabase(cursor, pageSize, options);
   }
 
-  async getAllUsers(): Promise<NotionUser[]> {
+  async getAllUsers(): Promise<NotionMember[]> {
     return entityService.getAllUsers();
   }
 
-  async queryProjectsDatabase(filters?: any, cursor?: string, pageSize?: number, options?: any): Promise<DatabaseQueryResult<NotionProject>> {
+  async queryProjectsDatabase(
+    filters?: any,
+    cursor?: string,
+    pageSize?: number,
+    options?: any
+  ): Promise<DatabaseQueryResult<NotionProject>> {
     return entityService.queryProjectsDatabase(filters, cursor, pageSize, options);
   }
 
@@ -189,7 +220,11 @@ class NotionService {
     return entityService.getAllProjects(filters);
   }
 
-  async queryClientsDatabase(cursor?: string, pageSize?: number, options?: any): Promise<DatabaseQueryResult<NotionClient>> {
+  async queryClientsDatabase(
+    cursor?: string,
+    pageSize?: number,
+    options?: any
+  ): Promise<DatabaseQueryResult<NotionClient>> {
     return entityService.queryClientsDatabase(cursor, pageSize, options);
   }
 
@@ -197,7 +232,11 @@ class NotionService {
     return entityService.getAllClients();
   }
 
-  async queryTeamsDatabase(cursor?: string, pageSize?: number, options?: any): Promise<DatabaseQueryResult<NotionTeam>> {
+  async queryTeamsDatabase(
+    cursor?: string,
+    pageSize?: number,
+    options?: any
+  ): Promise<DatabaseQueryResult<NotionTeam>> {
     return entityService.queryTeamsDatabase(cursor, pageSize, options);
   }
 
@@ -206,7 +245,7 @@ class NotionService {
   }
 
   // ============= CACHE OPERATIONS (delegate to cacheManagerService) =============
-  
+
   async getCacheStats(): Promise<any> {
     return cacheManagerService.getCacheStats();
   }
@@ -217,14 +256,63 @@ class NotionService {
 
   async warmupCache(): Promise<void> {
     logger.info('Starting comprehensive cache warmup...');
-    
+
     // Warmup calendar view for current month
     await calendarService.preloadCalendarCache();
-    
+
     // Warmup frequently accessed entities
     await entityService.warmupEntityCaches();
-    
+
     logger.info('Cache warmup completed successfully');
+  }
+
+  // ============= BATCH RESOLUTION OPERATIONS (new) =============
+
+  /**
+   * Resolve all relations for given data using batch loading
+   * Prevents N+1 queries by loading all related entities in parallel
+   */
+  async batchResolveRelations(data: {
+    tasks?: NotionTask[];
+    projects?: NotionProject[];
+    teams?: NotionTeam[];
+  }): Promise<any> {
+    return this.batchResolver.batchResolveRelations(data);
+  }
+
+  /**
+   * Load multiple members by IDs using batch loading
+   */
+  async batchLoadMembers(ids: string[]): Promise<(NotionMember | null)[]> {
+    return this.batchResolver.loadMembers(ids);
+  }
+
+  /**
+   * Load multiple projects by IDs using batch loading
+   */
+  async batchLoadProjects(ids: string[]): Promise<(NotionProject | null)[]> {
+    return this.batchResolver.loadProjects(ids);
+  }
+
+  /**
+   * Load multiple clients by IDs using batch loading
+   */
+  async batchLoadClients(ids: string[]): Promise<(NotionClient | null)[]> {
+    return this.batchResolver.loadClients(ids);
+  }
+
+  /**
+   * Load multiple teams by IDs using batch loading
+   */
+  async batchLoadTeams(ids: string[]): Promise<(NotionTeam | null)[]> {
+    return this.batchResolver.loadTeams(ids);
+  }
+
+  /**
+   * Clear all batch loading caches (useful for testing)
+   */
+  clearBatchResolverCache(): void {
+    this.batchResolver.clearAll();
   }
 }
 

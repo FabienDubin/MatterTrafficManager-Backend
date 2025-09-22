@@ -15,26 +15,26 @@ const TEST_USERS = [
     email: 'admin@matter.com',
     password: 'admin123!',
     role: UserRole.ADMIN,
-    description: 'Administrateur système'
+    description: 'Administrateur système',
   },
   {
     email: 'traffic@matter.com',
     password: 'traffic123!',
     role: UserRole.TRAFFIC_MANAGER,
-    description: 'Traffic Manager'
+    description: 'Traffic Manager',
   },
   {
     email: 'chef@matter.com',
     password: 'chef123!',
     role: UserRole.CHEF_PROJET,
-    description: 'Chef de projet'
+    description: 'Chef de projet',
   },
   {
     email: 'direction@matter.com',
     password: 'admin123!',
     role: UserRole.DIRECTION,
-    description: 'Direction'
-  }
+    description: 'Direction',
+  },
 ];
 
 /**
@@ -80,7 +80,7 @@ async function seedTestUsers() {
     logger.info('Seed completed successfully!');
     logger.info(`Created: ${createdCount} users`);
     logger.info(`Skipped: ${skippedCount} users (already existed)`);
-    
+
     if (createdCount > 0) {
       logger.info('═══════════════════════════════════════');
       logger.info('Test credentials:');
