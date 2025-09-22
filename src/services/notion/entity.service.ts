@@ -68,9 +68,9 @@ export class EntityService extends NotionBaseService {
   }
 
   /**
-   * Get all users (handles pagination)
+   * Get all members (handles pagination)
    */
-  async getAllUsers(): Promise<NotionMember[]> {
+  async getAllMembers(): Promise<NotionMember[]> {
     const cacheKey = 'users:all';
 
     return await cacheManagerService.getCachedOrFetch<NotionMember[]>(

@@ -1,5 +1,6 @@
 import { Redis } from '@upstash/redis';
 import logger from '../config/logger.config';
+import { cacheMetricsService } from './cache-metrics.service';
 
 interface RedisConfig {
   url: string;
@@ -48,6 +49,9 @@ export class RedisService {
    * Get data from cache with automatic Notion fallback
    */
   async get<T>(key: string, fallbackFn?: () => Promise<T>): Promise<T | null> {
+    const startTime = performance.now();
+    const entityType = key.split(':')[0] || 'unknown';
+    
     try {
       if (!this.isConnected) {
         logger.debug(`Redis not connected, falling back for key: ${key}`);
@@ -57,7 +61,9 @@ export class RedisService {
       const cached = await this.redis.get(key);
       
       if (cached) {
-        logger.debug(`Cache hit for key: ${key}`);
+        const responseTime = performance.now() - startTime;
+        logger.debug(`Cache hit for key: ${key} (${responseTime.toFixed(2)}ms)`);
+        cacheMetricsService.recordHit(entityType, responseTime);
         return cached as T;
       }
 
@@ -65,16 +71,22 @@ export class RedisService {
       
       if (fallbackFn) {
         const data = await fallbackFn();
+        const responseTime = performance.now() - startTime;
+        cacheMetricsService.recordMiss(entityType, responseTime);
+        
         if (data) {
-          const entityType = key.split(':')[0];
           await this.set(key, data, entityType);
         }
         return data;
       }
 
+      const responseTime = performance.now() - startTime;
+      cacheMetricsService.recordMiss(entityType, responseTime);
       return null;
     } catch (error) {
       logger.error('Redis get error:', error);
+      const responseTime = performance.now() - startTime;
+      cacheMetricsService.recordMiss(entityType, responseTime);
       return fallbackFn ? await fallbackFn() : null;
     }
   }

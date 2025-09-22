@@ -203,8 +203,8 @@ class NotionService {
     return entityService.queryUsersDatabase(cursor, pageSize, options);
   }
 
-  async getAllUsers(): Promise<NotionMember[]> {
-    return entityService.getAllUsers();
+  async getAllMembers(): Promise<NotionMember[]> {
+    return entityService.getAllMembers();
   }
 
   async queryProjectsDatabase(

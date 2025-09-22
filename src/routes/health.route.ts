@@ -62,4 +62,53 @@ const healthController = new HealthController();
  */
 router.get('/', healthController.check);
 
+/**
+ * @swagger
+ * /api/v1/health/metrics:
+ *   get:
+ *     tags: [Health]
+ *     summary: Get cache performance metrics
+ *     description: Returns detailed cache performance metrics including hit rate, response times, and memory usage
+ *     responses:
+ *       200:
+ *         description: Cache metrics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 overall:
+ *                   type: object
+ *                   properties:
+ *                     hits:
+ *                       type: number
+ *                     misses:
+ *                       type: number
+ *                     hitRate:
+ *                       type: number
+ *                     avgResponseTime:
+ *                       type: number
+ *                 byEntity:
+ *                   type: object
+ *                   additionalProperties:
+ *                     type: object
+ *                 performance:
+ *                   type: object
+ *                   properties:
+ *                     p50ResponseTimeMs:
+ *                       type: number
+ *                     p95ResponseTimeMs:
+ *                       type: number
+ *                     p99ResponseTimeMs:
+ *                       type: number
+ *                 memory:
+ *                   type: object
+ *                   properties:
+ *                     estimatedSizeMB:
+ *                       type: number
+ *                     warningLevel:
+ *                       type: string
+ */
+router.get('/metrics', healthController.getMetrics);
+
 export default router;

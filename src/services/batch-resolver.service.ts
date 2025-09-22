@@ -46,9 +46,9 @@ export class BatchResolverService {
         if (missingIds.length > 0) {
           logger.info(`BatchResolver: Fetching ${missingIds.length} members from Notion`);
 
-          // Utiliser la méthode getAllUsers du NotionService avec des IDs spécifiques
-          const allUsers = await this.notionService.getAllUsers();
-          freshData = allUsers.filter((user: NotionMember) => missingIds.includes(user.id));
+          // Utiliser la méthode getAllMembers du NotionService avec des IDs spécifiques
+          const allMembers = await this.notionService.getAllMembers();
+          freshData = allMembers.filter((member: NotionMember) => missingIds.includes(member.id));
 
           // 4. Mettre à jour Redis avec les nouvelles données
           await Promise.all(

@@ -11,9 +11,12 @@ dotenv.config();
 // Import middleware and routes
 import { requestLogger } from './middleware/logging.middleware';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
+import { preloadMiddleware } from './middleware/preload.middleware';
 import { setupSwagger } from './config/swagger.config';
 import apiRoutes from './routes/index.route';
 import logger from './config/logger.config';
+import { cacheRefreshJob } from './jobs/cache-refresh.job';
+import { preloadService } from './services/preload.service';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -70,6 +73,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Request logging middleware
 app.use(requestLogger);
 
+// Preload middleware for intelligent caching
+app.use(preloadMiddleware);
+
 // API Documentation (Swagger) - Development only
 setupSwagger(app);
 
@@ -114,12 +120,24 @@ const startServer = async (): Promise<void> => {
   try {
     await connectDB();
 
+    // Start cache preloading if enabled
+    if (process.env.PRELOAD_ON_STARTUP !== 'false') {
+      logger.info('Starting cache preload on startup...');
+      preloadService.preloadOnStartup().catch(err => {
+        logger.error('Startup preload error (non-blocking):', err);
+      });
+    }
+
+    // Start cache refresh cron jobs
+    cacheRefreshJob.start();
+
     const server = app.listen(PORT, () => {
       logger.info('Server started successfully', {
         port: PORT,
         environment: process.env.NODE_ENV || 'development',
         apiUrl: `http://localhost:${PORT}/api/v1`,
         healthCheck: `http://localhost:${PORT}/api/v1/health`,
+        metricsEndpoint: `http://localhost:${PORT}/api/v1/health/metrics`,
         documentation:
           process.env.NODE_ENV !== 'production' ? `http://localhost:${PORT}/api-docs` : 'disabled',
       });
