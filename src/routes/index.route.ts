@@ -7,6 +7,7 @@ import notionMappingRouter from './notion-mapping.route';
 import notionDiscoveryRouter from './notion-discovery.route';
 import webhookRouter from './webhook.route';
 import tasksRouter from './tasks.route';
+import cacheRouter from './cache.route';
 
 const router = Router();
 
@@ -28,7 +29,8 @@ router.get('/', (_, res) => {
       admin: {
         notionConfig: '/api/v1/admin/notion-config',
         notionMapping: '/api/v1/admin/notion-mapping',
-        notionDiscovery: '/api/v1/admin/notion-discovery'
+        notionDiscovery: '/api/v1/admin/notion-discovery',
+        cache: '/api/v1/admin/cache'
       }
     },
     timestamp: new Date().toISOString()
@@ -55,6 +57,9 @@ router.use('/admin/notion-mapping', notionMappingRouter);
 
 // Admin routes - Notion discovery
 router.use('/admin/notion-discovery', notionDiscoveryRouter);
+
+// Admin routes - Cache management
+router.use('/admin/cache', cacheRouter);
 
 // Webhook routes (no auth middleware here - handled internally)
 router.use('/', webhookRouter);

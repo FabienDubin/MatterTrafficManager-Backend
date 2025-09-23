@@ -18,8 +18,8 @@ interface MemoryInfo {
   evictionPolicy?: string;
 }
 
-interface UpstashInfoResponse {
-  result: string;
+interface UpstashResponse {
+  result: string | number;
 }
 
 class MemoryMonitorService {
@@ -30,7 +30,8 @@ class MemoryMonitorService {
   private readonly ALERT_COOLDOWN_MS = 300000; // 5 minutes
 
   /**
-   * Get memory usage from Upstash Redis using INFO command
+   * Get memory usage from Upstash Redis using DBSIZE command
+   * Upstash doesn't support INFO command, so we use DBSIZE and estimate memory
    */
   async getMemoryInfo(): Promise<MemoryInfo> {
     try {
@@ -41,9 +42,9 @@ class MemoryMonitorService {
         throw new Error('Redis URL or Token not configured');
       }
 
-      // Execute INFO memory command via REST API
-      const response = await axios.post<UpstashInfoResponse>(
-        `${redisUrl}/info`,
+      // Use DBSIZE to get the number of keys (Upstash supports this)
+      const dbsizeResponse = await axios.post<UpstashResponse>(
+        `${redisUrl}/dbsize`,
         null,
         {
           headers: {
@@ -52,56 +53,71 @@ class MemoryMonitorService {
         }
       );
 
-      const infoText = response.data.result;
+      const keyCount = typeof dbsizeResponse.data.result === 'number' 
+        ? dbsizeResponse.data.result 
+        : parseInt(String(dbsizeResponse.data.result), 10) || 0;
       
-      // Parse the INFO output
-      const memoryInfo = this.parseInfoMemory(infoText);
+      // Estimate memory based on key count and average key size
+      const memoryInfo = await this.estimateMemoryFromKeyCount(keyCount);
       
       // Check and log alerts
       this.checkMemoryAlerts(memoryInfo);
       
       return memoryInfo;
     } catch (error) {
-      logger.error('Failed to get memory info:', error);
+      logger.error('Failed to get memory info from Upstash:', error);
       
-      // Return estimated values if INFO fails
+      // Return estimated values if DBSIZE fails
       return this.getEstimatedMemoryInfo();
     }
   }
 
   /**
-   * Parse INFO memory output
+   * Estimate memory usage based on key count
+   * Uses averages based on typical cache patterns in the application
    */
-  private parseInfoMemory(infoText: string): MemoryInfo {
-    const lines = infoText.split('\n');
-    let usedMemoryBytes = 0;
-    let keyCount = 0;
-    let evictionPolicy = 'noeviction'; // Upstash default
-
-    for (const line of lines) {
-      // Parse used_memory
-      if (line.startsWith('used_memory:')) {
-        const value = line.split(':')[1];
-        if (value) {
-          usedMemoryBytes = parseInt(value, 10);
+  private async estimateMemoryFromKeyCount(keyCount: number): Promise<MemoryInfo> {
+    // Average sizes based on typical cached entities:
+    // - Tasks: ~2KB per item (includes description, dates, etc.)
+    // - Projects: ~5KB per item (includes multiple fields)
+    // - Members/Users: ~1KB per item
+    // - Teams: ~3KB per item
+    // - Clients: ~2KB per item
+    // Average across all types: ~2.5KB per key
+    const avgKeySizeBytes = 2560; // 2.5KB average
+    
+    // Get actual key distribution if possible
+    const distribution = await this.getActualKeyDistribution();
+    
+    // Calculate weighted average if we have distribution
+    let weightedAvgSize = avgKeySizeBytes;
+    if (distribution.total && distribution.total > 0) {
+      const weights = {
+        tasks: 2048,      // 2KB
+        projects: 5120,   // 5KB
+        members: 1024,    // 1KB
+        users: 1024,      // 1KB
+        teams: 3072,      // 3KB
+        clients: 2048,    // 2KB
+      };
+      
+      let totalWeight = 0;
+      let weightedSum = 0;
+      
+      Object.entries(distribution).forEach(([key, count]) => {
+        if (key !== 'total' && key !== 'other' && weights[key as keyof typeof weights]) {
+          const weight = weights[key as keyof typeof weights];
+          weightedSum += weight * count;
+          totalWeight += count;
         }
-      }
-      // Parse key count from db0 info
-      if (line.startsWith('db0:')) {
-        const match = line.match(/keys=(\d+)/);
-        if (match && match[1]) {
-          keyCount = parseInt(match[1], 10);
-        }
-      }
-      // Parse eviction policy
-      if (line.startsWith('maxmemory_policy:')) {
-        const policy = line.split(':')[1];
-        if (policy) {
-          evictionPolicy = policy.trim();
-        }
+      });
+      
+      if (totalWeight > 0) {
+        weightedAvgSize = Math.round(weightedSum / totalWeight);
       }
     }
-
+    
+    const usedMemoryBytes = keyCount * weightedAvgSize;
     const usedMemoryMB = usedMemoryBytes / (1024 * 1024);
     const usagePercentage = (usedMemoryMB / this.MEMORY_LIMIT_MB) * 100;
     
@@ -112,18 +128,16 @@ class MemoryMonitorService {
       warningLevel = 'warning';
     }
 
-    const avgKeySize = keyCount > 0 ? usedMemoryBytes / keyCount : undefined;
-
     return {
-      usedMemoryBytes,
+      usedMemoryBytes: Math.round(usedMemoryBytes),
       usedMemoryMB: Math.round(usedMemoryMB * 100) / 100,
       maxMemoryBytes: this.MEMORY_LIMIT_MB * 1024 * 1024,
       maxMemoryMB: this.MEMORY_LIMIT_MB,
       usagePercentage: Math.round(usagePercentage * 100) / 100,
       warningLevel,
       keyCount,
-      avgKeySize: avgKeySize !== undefined ? Math.round(avgKeySize) : undefined,
-      evictionPolicy,
+      avgKeySize: weightedAvgSize,
+      evictionPolicy: 'allkeys-lru', // Upstash default
     };
   }
 
@@ -266,16 +280,74 @@ class MemoryMonitorService {
    * Get distribution of keys by entity type
    */
   private async getKeyDistribution(): Promise<Record<string, number>> {
-    // This would need SCAN command to be accurate
-    // For now, return estimates based on known patterns
-    return {
-      users: 50,
-      teams: 10,
-      projects: 100,
-      tasks: 500,
-      clients: 20,
-      other: 50,
-    };
+    return this.getActualKeyDistribution();
+  }
+
+  /**
+   * Get actual key distribution using Redis keys
+   */
+  private async getActualKeyDistribution(): Promise<Record<string, number>> {
+    try {
+      // Try to get actual counts using the keys method from redisService
+      const patterns = [
+        'tasks',
+        'projects', 
+        'members',
+        'users',
+        'teams',
+        'clients',
+      ];
+      
+      const distribution: Record<string, number> = {};
+      let total = 0;
+      
+      for (const pattern of patterns) {
+        const keys = await redisService.keys(`${pattern}:*`);
+        distribution[pattern] = keys.length;
+        total += keys.length;
+      }
+      
+      // Get total from DBSIZE for 'other' calculation
+      const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.REDIS_URL;
+      const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.REDIS_TOKEN;
+      
+      if (redisUrl && redisToken) {
+        try {
+          const dbsizeResponse = await axios.post<UpstashResponse>(
+            `${redisUrl}/dbsize`,
+            null,
+            {
+              headers: {
+                Authorization: `Bearer ${redisToken}`,
+              },
+            }
+          );
+          
+          const totalKeys = typeof dbsizeResponse.data.result === 'number' 
+            ? dbsizeResponse.data.result 
+            : parseInt(String(dbsizeResponse.data.result), 10) || 0;
+          
+          distribution.other = Math.max(0, totalKeys - total);
+          distribution.total = totalKeys;
+        } catch (err) {
+          logger.debug('Could not get total key count for distribution');
+        }
+      }
+      
+      return distribution;
+    } catch (error) {
+      logger.debug('Could not get actual key distribution, using estimates');
+      // Return estimates if we can't get actual distribution
+      return {
+        users: 50,
+        teams: 10,
+        projects: 100,
+        tasks: 500,
+        clients: 20,
+        other: 50,
+        total: 730,
+      };
+    }
   }
 
   /**

@@ -5,8 +5,7 @@ import {
   saveMapping,
   previewMapping
 } from '../controllers/notion-mapping.controller';
-import { authenticate } from '../middleware/auth.middleware';
-import { requireAdmin } from '../middleware/admin.middleware';
+import { authenticate, requireAdmin } from '../middleware/auth.middleware';
 
 const router = Router();
 

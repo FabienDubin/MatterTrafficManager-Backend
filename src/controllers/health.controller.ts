@@ -4,6 +4,7 @@ import { redisService } from '../services/redis.service';
 import { SyncLogModel } from '../models/SyncLog.model';
 import { cacheMetricsService } from '../services/cache-metrics.service';
 import { memoryMonitorService } from '../services/memory-monitor.service';
+import * as packageJson from '../../package.json';
 
 export class HealthController {
   /**
@@ -15,6 +16,7 @@ export class HealthController {
         status: 'healthy',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
+        version: packageJson.version || '1.0.0',
         services: {
           mongodb: await this.checkMongoDB(),
           redis: await this.checkRedis(),
@@ -104,37 +106,36 @@ export class HealthController {
   getMetrics = async (_req: Request, res: Response): Promise<void> => {
     try {
       const metrics = cacheMetricsService.getMetrics();
-      const memoryEstimate = cacheMetricsService.getMemoryEstimate();
+      const memoryInfo = await memoryMonitorService.getMemoryInfo();
       
-      // Format for frontend consumption
+      // Format for frontend consumption - matches CacheMetrics interface
       const formattedResponse = {
         success: true,
-        data: {
-          summary: {
-            status: this.getHealthStatus(metrics.overall.hitRate, memoryEstimate.warningLevel),
-            hitRateDisplay: `${metrics.overall.hitRate.toFixed(1)}%`,
-            totalRequests: metrics.overall.totalRequests,
-            avgResponseDisplay: `${metrics.overall.avgResponseTime.toFixed(1)}ms`,
-            memoryUsage: `${memoryEstimate.estimatedSizeMB}MB / 256MB`,
-            memoryWarning: memoryEstimate.warningLevel,
+        cache: {
+          hits: metrics.overall.hits,
+          misses: metrics.overall.misses,
+          totalRequests: metrics.overall.totalRequests,
+          avgResponseTime: metrics.overall.avgResponseTime,
+          minResponseTime: metrics.performance.minResponseTimeMs || 0,
+          maxResponseTime: metrics.performance.maxResponseTimeMs || 100,
+          responseTimePercentiles: {
+            p50: metrics.performance.p50ResponseTimeMs || 0,
+            p95: metrics.performance.p95ResponseTimeMs || 0,
+            p99: metrics.performance.p99ResponseTimeMs || 0,
           },
-          charts: {
-            entityBreakdown: Object.entries(metrics.byEntity).map(([entity, data]: [string, any]) => ({
-              entity,
-              hits: data.hits,
-              misses: data.misses,
-              hitRate: data.hitRate.toFixed(1),
-            })),
-            performanceMetrics: [
-              { label: 'P50', value: metrics.performance.p50ResponseTimeMs },
-              { label: 'P95', value: metrics.performance.p95ResponseTimeMs },
-              { label: 'P99', value: metrics.performance.p99ResponseTimeMs },
-            ],
-          },
-          alerts: this.generateAlerts(metrics, memoryEstimate),
-          raw: metrics, // Keep raw data for advanced users
+          entityMetrics: Object.entries(metrics.byEntity).reduce((acc, [key, value]: [string, any]) => {
+            acc[key] = {
+              hits: value.hits,
+              misses: value.misses,
+              requests: value.hits + value.misses,
+              avgResponseTime: value.avgResponseTime,
+            };
+            return acc;
+          }, {} as Record<string, any>),
           timestamp: new Date().toISOString(),
         },
+        memory: memoryInfo,
+        timestamp: new Date().toISOString(),
       };
       
       res.json(formattedResponse);

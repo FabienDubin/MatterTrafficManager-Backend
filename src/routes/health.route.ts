@@ -1,8 +1,32 @@
 import { Router } from 'express';
 import { HealthController } from '../controllers/health.controller';
+import { authenticate, requireAdmin } from '../middleware/auth.middleware';
 
 const router = Router();
 const healthController = new HealthController();
+
+/**
+ * @swagger  
+ * /api/v1/health/ping:
+ *   get:
+ *     tags: [Health]
+ *     summary: Basic health check
+ *     description: Simple endpoint for load balancer health checks
+ *     responses:
+ *       200:
+ *         description: Service is running
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   enum: [ok]
+ */
+router.get('/ping', (req, res) => {
+  res.json({ status: 'ok' });
+});
 
 /**
  * @swagger
@@ -109,7 +133,8 @@ router.get('/', healthController.check);
  *                     warningLevel:
  *                       type: string
  */
-router.get('/metrics', healthController.getMetrics);
+// Sécurisé : nécessite authentification admin
+router.get('/metrics', authenticate, requireAdmin, healthController.getMetrics);
 
 /**
  * @swagger
@@ -156,7 +181,8 @@ router.get('/metrics', healthController.getMetrics);
  *       500:
  *         description: Failed to retrieve memory statistics
  */
-router.get('/memory', healthController.getMemory);
+// Sécurisé : nécessite authentification admin
+router.get('/memory', authenticate, requireAdmin, healthController.getMemory);
 
 /**
  * @swagger
@@ -185,6 +211,7 @@ router.get('/memory', healthController.getMemory);
  *       500:
  *         description: Failed to perform eviction
  */
-router.post('/memory/evict', healthController.forceEviction);
+// Sécurisé : nécessite authentification admin
+router.post('/memory/evict', authenticate, requireAdmin, healthController.forceEviction);
 
 export default router;

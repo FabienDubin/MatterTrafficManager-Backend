@@ -204,6 +204,81 @@ export class RedisService {
   }
 
   /**
+   * Clear all cache entries
+   */
+  async clear(): Promise<void> {
+    try {
+      if (!this.isConnected) {
+        return;
+      }
+
+      await this.redis.flushdb();
+      logger.info('All cache entries cleared');
+    } catch (error) {
+      logger.error('Redis clear error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all keys matching a pattern
+   */
+  async keys(pattern: string): Promise<string[]> {
+    try {
+      if (!this.isConnected) {
+        return [];
+      }
+
+      const keys: string[] = [];
+      let cursor = 0;
+      
+      do {
+        const result = await this.redis.scan(cursor, { match: pattern, count: 100 });
+        cursor = Number(result[0]);
+        keys.push(...result[1]);
+      } while (cursor !== 0);
+
+      return keys;
+    } catch (error) {
+      logger.error('Redis keys error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Delete a key and return whether it was deleted
+   */
+  async delete(key: string): Promise<boolean> {
+    try {
+      if (!this.isConnected) {
+        return false;
+      }
+
+      const result = await this.redis.del(key);
+      return result > 0;
+    } catch (error) {
+      logger.error('Redis delete error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get TTL for a key
+   */
+  async ttl(key: string): Promise<number> {
+    try {
+      if (!this.isConnected) {
+        return -1;
+      }
+
+      return await this.redis.ttl(key);
+    } catch (error) {
+      logger.error('Redis ttl error:', error);
+      return -1;
+    }
+  }
+
+  /**
    * Health check for Redis connection
    */
   async healthCheck(): Promise<{ status: string; message?: string }> {
