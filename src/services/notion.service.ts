@@ -9,7 +9,7 @@ import { calendarService } from './notion/calendar.service';
 import { entityService } from './notion/entity.service';
 import { cacheManagerService } from './notion/cache-manager.service';
 import { BatchResolverService } from './batch-resolver.service';
-import { RedisService } from './redis.service';
+import { redisService } from './redis.service';
 
 // Import types
 import type {
@@ -29,11 +29,9 @@ import type {
  */
 class NotionService {
   private batchResolver: BatchResolverService;
-  private redisService: RedisService;
 
   constructor() {
-    this.redisService = new RedisService();
-    this.batchResolver = new BatchResolverService(this.redisService, this);
+    this.batchResolver = new BatchResolverService(redisService, this);
   }
 
   // ============= CONNECTION & HEALTH =============
