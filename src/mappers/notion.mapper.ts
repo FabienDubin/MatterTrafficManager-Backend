@@ -191,14 +191,29 @@ export function createNotionTaskProperties(input: any) {
   }
 
   if (input.taskType !== undefined) {
+    // Type de tache is a status field in Notion, not select
+    // Map our taskType values to the French names used in Notion
+    const taskTypeMap: { [key: string]: string } = {
+      'task': 'Tache',
+      'holiday': 'Congé', 
+      'school': 'Formation',
+      'remote': 'Télétravail'
+    };
     properties[TASK_PROPERTY_IDS.taskType] = {
-      select: { name: input.taskType },
+      status: { name: taskTypeMap[input.taskType] || 'Tache' },
     };
   }
 
   if (input.status !== undefined) {
+    // État is a status field in Notion, not select
+    // Map our status values to the French names used in Notion
+    const statusMap: { [key: string]: string } = {
+      'not_started': 'Pas commencé',
+      'in_progress': 'A valider',
+      'completed': 'Terminé'
+    };
     properties[TASK_PROPERTY_IDS.status] = {
-      select: { name: input.status },
+      status: { name: statusMap[input.status] || 'Pas commencé' },
     };
   }
 

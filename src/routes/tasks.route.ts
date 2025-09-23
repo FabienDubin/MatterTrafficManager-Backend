@@ -147,7 +147,7 @@ router.get("/calendar", tasksController.getCalendarTasks);
  * /api/v1/tasks/{id}:
  *   get:
  *     summary: Get a single task by ID
- *     description: Retrieve detailed information about a specific task (Not implemented yet)
+ *     description: Retrieve detailed information about a specific task
  *     tags: [Tasks]
  *     security:
  *       - bearerAuth: []
@@ -160,20 +160,179 @@ router.get("/calendar", tasksController.getCalendarTasks);
  *         description: Task ID
  *         example: "task-123"
  *     responses:
- *       501:
- *         description: Not implemented yet
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 error:
- *                   type: string
- *                   example: "Not implemented yet"
+ *       200:
+ *         description: Task retrieved successfully
+ *       404:
+ *         description: Task not found
+ *       500:
+ *         description: Failed to fetch task
  */
 router.get("/:id", tasksController.getTaskById);
+
+/**
+ * @swagger
+ * /api/v1/tasks:
+ *   post:
+ *     summary: Create a new task
+ *     description: Create a new task in Notion and cache it
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *               - workPeriod
+ *             properties:
+ *               title:
+ *                 type: string
+ *               workPeriod:
+ *                 type: object
+ *                 properties:
+ *                   startDate:
+ *                     type: string
+ *                     format: date-time
+ *                   endDate:
+ *                     type: string
+ *                     format: date-time
+ *               assignedMembers:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               projectId:
+ *                 type: string
+ *               taskType:
+ *                 type: string
+ *                 enum: [task, holiday, school, remote]
+ *               status:
+ *                 type: string
+ *                 enum: [not_started, in_progress, completed]
+ *     responses:
+ *       201:
+ *         description: Task created successfully
+ *       400:
+ *         description: Invalid request data
+ *       429:
+ *         description: Rate limit exceeded
+ *       500:
+ *         description: Failed to create task
+ */
+router.post("/", tasksController.createTask);
+
+/**
+ * @swagger
+ * /api/v1/tasks/{id}:
+ *   put:
+ *     summary: Update an existing task
+ *     description: Update task in Notion and update cache
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Task ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               workPeriod:
+ *                 type: object
+ *               assignedMembers:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               status:
+ *                 type: string
+ *               version:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Task updated successfully
+ *       400:
+ *         description: Invalid request data
+ *       404:
+ *         description: Task not found
+ *       500:
+ *         description: Failed to update task
+ */
+router.put("/:id", tasksController.updateTask);
+
+/**
+ * @swagger
+ * /api/v1/tasks/{id}:
+ *   delete:
+ *     summary: Archive a task
+ *     description: Soft delete (archive) a task in Notion
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Task ID
+ *     responses:
+ *       200:
+ *         description: Task archived successfully
+ *       404:
+ *         description: Task not found
+ *       500:
+ *         description: Failed to delete task
+ */
+router.delete("/:id", tasksController.deleteTask);
+
+/**
+ * @swagger
+ * /api/v1/tasks/batch:
+ *   post:
+ *     summary: Batch update tasks
+ *     description: Update multiple tasks in a single request
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - updates
+ *             properties:
+ *               updates:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     data:
+ *                       type: object
+ *     responses:
+ *       200:
+ *         description: All tasks updated successfully
+ *       207:
+ *         description: Partial success (some updates failed)
+ *       400:
+ *         description: Invalid request data
+ *       500:
+ *         description: Failed to process batch update
+ */
+router.post("/batch", tasksController.batchUpdateTasks);
 
 export default router;
