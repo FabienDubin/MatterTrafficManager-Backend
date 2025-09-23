@@ -111,4 +111,80 @@ router.get('/', healthController.check);
  */
 router.get('/metrics', healthController.getMetrics);
 
+/**
+ * @swagger
+ * /api/v1/health/memory:
+ *   get:
+ *     tags: [Health]
+ *     summary: Get Redis memory usage details
+ *     description: Returns detailed memory usage statistics from Upstash Redis
+ *     responses:
+ *       200:
+ *         description: Memory statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     memory:
+ *                       type: object
+ *                       properties:
+ *                         usedMemoryMB:
+ *                           type: number
+ *                         maxMemoryMB:
+ *                           type: number
+ *                         usagePercentage:
+ *                           type: number
+ *                         warningLevel:
+ *                           type: string
+ *                           enum: [ok, warning, critical]
+ *                         keyCount:
+ *                           type: number
+ *                     distribution:
+ *                       type: object
+ *                       additionalProperties:
+ *                         type: number
+ *                     recommendations:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *       500:
+ *         description: Failed to retrieve memory statistics
+ */
+router.get('/memory', healthController.getMemory);
+
+/**
+ * @swagger
+ * /api/v1/health/memory/evict:
+ *   post:
+ *     tags: [Health]
+ *     summary: Force memory eviction
+ *     description: Manually trigger cache eviction to free up memory
+ *     responses:
+ *       200:
+ *         description: Eviction performed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     evictedKeys:
+ *                       type: number
+ *       500:
+ *         description: Failed to perform eviction
+ */
+router.post('/memory/evict', healthController.forceEviction);
+
 export default router;

@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { redisService } from '../services/redis.service';
 import { SyncLogModel } from '../models/SyncLog.model';
 import { cacheMetricsService } from '../services/cache-metrics.service';
+import { memoryMonitorService } from '../services/memory-monitor.service';
 
 export class HealthController {
   /**
@@ -170,4 +171,43 @@ export class HealthController {
     
     return alerts;
   }
+
+  /**
+   * Get Redis memory usage details
+   */
+  getMemory = async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const memoryStats = await memoryMonitorService.getDetailedStats();
+      
+      res.json({
+        success: true,
+        data: memoryStats,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to retrieve memory stats',
+      });
+    }
+  };
+
+  /**
+   * Force memory eviction if needed
+   */
+  forceEviction = async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const result = await memoryMonitorService.performEviction();
+      
+      res.json({
+        success: true,
+        message: `Evicted ${result.evictedKeys} cache entries`,
+        data: result,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to perform eviction',
+      });
+    }
+  };
 }
