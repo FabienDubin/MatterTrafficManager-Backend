@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document, Model } from 'mongoose';
 
 /**
  * Interface TypeScript pour Config (configuration système)
@@ -16,6 +16,16 @@ export interface IConfig extends Document {
   lastModifiedBy?: string; // User qui a modifié
   createdAt: Date;
   updatedAt: Date;
+}
+
+/**
+ * Interface pour les méthodes statiques du modèle Config
+ */
+export interface IConfigModel extends Model<IConfig> {
+  getValue(key: string): Promise<any>;
+  setValue(key: string, value: any, userId?: string): Promise<IConfig>;
+  getByCategory(category: string): Promise<IConfig[]>;
+  initDefaults(): Promise<void>;
 }
 
 /**
@@ -246,6 +256,33 @@ ConfigSchema.statics.initDefaults = async function(): Promise<void> {
       defaultValue: false,
       isEditable: true,
     },
+    {
+      key: 'ASYNC_MODE_CREATE',
+      value: false,
+      description: 'Activer le mode asynchrone pour la création de tâches',
+      category: 'sync',
+      dataType: 'boolean',
+      defaultValue: false,
+      isEditable: true,
+    },
+    {
+      key: 'ASYNC_MODE_UPDATE',
+      value: false,
+      description: 'Activer le mode asynchrone pour la modification de tâches',
+      category: 'sync',
+      dataType: 'boolean',
+      defaultValue: false,
+      isEditable: true,
+    },
+    {
+      key: 'ASYNC_MODE_DELETE',
+      value: false,
+      description: 'Activer le mode asynchrone pour la suppression de tâches',
+      category: 'sync',
+      dataType: 'boolean',
+      defaultValue: false,
+      isEditable: true,
+    },
   ];
   
   for (const config of defaultConfigs) {
@@ -257,4 +294,4 @@ ConfigSchema.statics.initDefaults = async function(): Promise<void> {
   }
 };
 
-export const ConfigModel = mongoose.model<IConfig>('Config', ConfigSchema);
+export const ConfigModel = mongoose.model<IConfig, IConfigModel>('Config', ConfigSchema);

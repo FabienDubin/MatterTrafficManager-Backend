@@ -27,22 +27,40 @@ export class ConflictService {
           freshTime
         });
 
-        // Log the conflict
+        // Determine severity based on affected fields
+        const affectedFields = this.detectAffectedFields(cachedData, freshData);
+        const severity = this.determineSeverity(affectedFields);
+        
+        // Create conflict log
         const conflict = await ConflictLogModel.create({
           entityType: entityType as any,
           entityId,
           notionId: freshData.id || entityId,
           conflictType: 'update_conflict',
-          resolution: 'notion_wins',
+          resolution: severity === 'low' ? 'notion_wins' : 'pending',
           localData: cachedData,
           notionData: freshData,
           detectedAt: new Date(),
-          autoResolved: true,
+          autoResolved: severity === 'low',
+          resolvedAt: severity === 'low' ? new Date() : undefined,
           conflictDetails: `Data was modified in Notion (${freshTime}) while cached version was from ${cachedTime}`,
-          affectedFields: this.detectAffectedFields(cachedData, freshData),
-          severity: 'low',
+          affectedFields: affectedFields,
+          severity: severity,
           userNotified: false
         });
+
+        // Auto-resolve low severity conflicts with notion_wins
+        if (severity === 'low') {
+          logger.info(`Auto-resolving low severity conflict for ${entityType}:${entityId} with notion_wins strategy`);
+          
+          // Update cache with Notion data
+          const redisService = require('./redis.service').redisService;
+          await redisService.set(
+            `${entityType}:${entityId}`,
+            freshData,
+            entityType
+          );
+        }
 
         return conflict;
       }
@@ -140,6 +158,36 @@ export class ConflictService {
     }
 
     return affectedFields;
+  }
+
+  /**
+   * Determine severity based on affected fields
+   */
+  private determineSeverity(affectedFields: string[]): 'low' | 'medium' | 'high' | 'critical' {
+    // Critical fields that should never auto-resolve
+    const criticalFields = ['status', 'assignedMembers', 'projectId'];
+    
+    // Important fields that need review
+    const importantFields = ['workPeriod', 'billedHours', 'actualHours'];
+    
+    // Check if any critical fields are affected
+    if (affectedFields.some(field => criticalFields.includes(field))) {
+      return 'high';
+    }
+    
+    // Check if multiple important fields are affected
+    const importantCount = affectedFields.filter(field => importantFields.includes(field)).length;
+    if (importantCount > 1) {
+      return 'medium';
+    }
+    
+    // Single important field
+    if (importantCount === 1) {
+      return 'medium';
+    }
+    
+    // Only minor fields affected (title, notes, etc.)
+    return 'low';
   }
 
   /**

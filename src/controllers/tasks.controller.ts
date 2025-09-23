@@ -1,9 +1,13 @@
 import { Request, Response } from "express";
 import notionService from "../services/notion.service";
+import syncQueueService from "../services/sync-queue.service";
 import { z } from "zod";
-import { format, parseISO, isValid } from "date-fns";
+import { parseISO, isValid } from "date-fns";
 import { redisService } from "../services/redis.service";
 import { CreateTaskInput, UpdateTaskInput } from "../types/notion.types";
+import { latencyMetricsService } from "../services/latency-metrics.service";
+import { ConflictLogModel } from "../models/ConflictLog.model";
+import { conflictService } from "../services/conflict.service";
 
 // Validation schema for query params
 const calendarQuerySchema = z.object({
@@ -57,7 +61,9 @@ const updateTaskSchema = z.object({
   actualHours: z.number().optional(),
   addToCalendar: z.boolean().optional(),
   clientPlanning: z.boolean().optional(),
-  version: z.number().optional() // For versioning
+  // Optimistic update fields
+  expectedUpdatedAt: z.string().optional(), // ISO date de last_edited_time pour détecter conflits
+  force: z.boolean().optional() // Force l'update même en cas de conflit
 });
 
 // Validation schema for batch updates
@@ -70,10 +76,48 @@ const batchUpdateSchema = z.object({
 
 export class TasksController {
   /**
+   * Helper to check for conflicts and build syncStatus
+   */
+  private async getSyncStatus(entityId: string, entityType: string = 'task') {
+    try {
+      // Check for pending conflicts
+      const pendingConflicts = await ConflictLogModel.find({
+        entityId,
+        entityType,
+        resolution: 'pending'
+      }).sort({ detectedAt: -1 }).limit(1);
+
+      const hasConflicts = pendingConflicts.length > 0;
+      const latestConflict = pendingConflicts[0];
+
+      return {
+        synced: !hasConflicts,
+        lastSync: new Date().toISOString(),
+        conflicts: hasConflicts && latestConflict ? {
+          hasConflicts: true,
+          conflictId: latestConflict._id?.toString(),
+          severity: latestConflict.severity || 'medium',
+          detectedAt: latestConflict.detectedAt
+        } : {
+          hasConflicts: false
+        }
+      };
+    } catch (error) {
+      console.error('Error checking conflicts:', error);
+      return {
+        synced: true,
+        lastSync: new Date().toISOString(),
+        conflicts: {
+          hasConflicts: false
+        }
+      };
+    }
+  }
+  /**
    * Get tasks for calendar view
    * GET /api/tasks/calendar?startDate=2025-01-01&endDate=2025-01-31
    */
-  async getCalendarTasks(req: Request, res: Response) {
+  getCalendarTasks = async (req: Request, res: Response) => {
     try {
       // Validate query params
       const validation = calendarQuerySchema.safeParse(req.query);
@@ -114,19 +158,43 @@ export class TasksController {
         tasks
       });
 
-      // Format response avec les données enrichies
+      // Check for conflicts in each task during polling
+      const tasksWithSyncStatus = await Promise.all(
+        resolvedTasks.map(async (task: any) => {
+          const syncStatus = await this.getSyncStatus(task.id, 'task');
+          return {
+            ...task,
+            syncStatus
+          };
+        })
+      );
+
+      // Check if any task has conflicts
+      const hasAnyConflicts = tasksWithSyncStatus.some(
+        task => task.syncStatus?.conflicts?.hasConflicts
+      );
+
+      // Format response avec les données enrichies et syncStatus
       return res.status(200).json({
         success: true,
         data: {
-          tasks: resolvedTasks,
+          tasks: tasksWithSyncStatus,
           cacheHit: true, // Calendar service uses cache by default
           period: {
             start: startDate,
             end: endDate
+          },
+          syncStatus: {
+            synced: !hasAnyConflicts,
+            lastSync: new Date().toISOString(),
+            hasConflicts: hasAnyConflicts,
+            conflictCount: tasksWithSyncStatus.filter(
+              t => t.syncStatus?.conflicts?.hasConflicts
+            ).length
           }
         },
         meta: {
-          count: resolvedTasks.length,
+          count: tasksWithSyncStatus.length,
           cached: true,
           timestamp: new Date().toISOString()
         }
@@ -164,7 +232,7 @@ export class TasksController {
    * Get a single task by ID
    * GET /api/tasks/:id
    */
-  async getTaskById(req: Request, res: Response) {
+  getTaskById = async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       
@@ -185,9 +253,15 @@ export class TasksController {
         });
       }
 
+      // Add sync status with conflict info
+      const syncStatus = await this.getSyncStatus(id, 'task');
+
       return res.status(200).json({
         success: true,
-        data: task
+        data: {
+          ...task,
+          syncStatus
+        }
       });
       
     } catch (error) {
@@ -203,7 +277,7 @@ export class TasksController {
    * Create a new task
    * POST /api/tasks
    */
-  async createTask(req: Request, res: Response) {
+  createTask = async (req: Request, res: Response) => {
     try {
       // Validate request body
       const validation = createTaskSchema.safeParse(req.body);
@@ -217,30 +291,96 @@ export class TasksController {
       }
 
       const taskData = validation.data;
+      const useAsync = req.query.async === 'true';
 
-      // Create task in Notion - cast to CreateTaskInput to handle optional types
-      const createdTask = await notionService.createTask(taskData as CreateTaskInput);
+      if (useAsync) {
+        // ASYNC MODE: Queue for background sync (< 100ms)
+        const startTime = Date.now();
+        
+        // Queue the creation and get temp ID
+        const { id: tempId } = await syncQueueService.queueTaskCreate(taskData as CreateTaskInput);
+        
+        // Create optimistic response
+        const optimisticTask = {
+          id: tempId,
+          ...taskData,
+          _temporary: true,
+          _pendingSync: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
 
-      // Cache the new task
-      await redisService.set(
-        `task:${createdTask.id}`,
-        createdTask,
-        'task' // entity type
-      );
-
-      // Invalidate calendar cache for the period
-      if (taskData.workPeriod) {
-        await redisService.invalidatePattern('calendar:*');
-      }
-
-      return res.status(201).json({
-        success: true,
-        data: createdTask,
-        meta: {
-          cached: true,
-          timestamp: new Date().toISOString()
+        const queueTime = Date.now() - startTime;
+        
+        // Record metrics
+        latencyMetricsService.recordRedisLatency(queueTime, 'task-create-queue');
+        
+        // Invalidate calendar cache
+        if (taskData.workPeriod) {
+          await redisService.invalidatePattern('calendar:*');
         }
-      });
+
+        return res.status(201).json({
+          success: true,
+          data: optimisticTask,
+          syncStatus: {
+            synced: false,
+            lastSync: new Date().toISOString(),
+            conflicts: {
+              hasConflicts: false
+            },
+            pending: true
+          },
+          meta: {
+            cached: true,
+            timestamp: new Date().toISOString(),
+            mode: 'async',
+            queueTime: `${queueTime}ms`,
+            tempId: tempId
+          }
+        });
+        
+      } else {
+        // SYNC MODE: Direct Notion call (current behavior)
+        const startTime = Date.now();
+        
+        const createdTask = await notionService.createTask(taskData as CreateTaskInput);
+        
+        const notionTime = Date.now() - startTime;
+        
+        // Record metrics
+        latencyMetricsService.recordNotionLatency(notionTime, 'task-create-sync');
+
+        // Cache the new task
+        await redisService.set(
+          `task:${createdTask.id}`,
+          createdTask,
+          'task'
+        );
+
+        // Invalidate calendar cache
+        if (taskData.workPeriod) {
+          await redisService.invalidatePattern('calendar:*');
+        }
+
+        // Get sync status for the newly created task
+        const syncStatus = await this.getSyncStatus(createdTask.id, 'task');
+
+        return res.status(201).json({
+          success: true,
+          data: {
+            ...createdTask,
+            updatedAt: createdTask.updatedAt?.toISOString()
+          },
+          syncStatus,
+          meta: {
+            cached: true,
+            timestamp: new Date().toISOString(),
+            mode: 'sync',
+            notionTime: `${notionTime}ms`
+          }
+        });
+      }
       
     } catch (error) {
       console.error("Error creating task:", error);
@@ -262,10 +402,10 @@ export class TasksController {
   }
 
   /**
-   * Update an existing task
+   * Update an existing task with optimistic update support
    * PUT /api/tasks/:id
    */
-  async updateTask(req: Request, res: Response) {
+  updateTask = async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       
@@ -287,31 +427,129 @@ export class TasksController {
         });
       }
 
-      const updateData = validation.data;
+      const { expectedUpdatedAt, force, ...updateData } = validation.data;
+      const useAsync = req.query.async === 'true';
 
-      // Update task in Notion - cast to UpdateTaskInput to handle optional types
-      const updatedTask = await notionService.updateTask(id, updateData as UpdateTaskInput);
-
-      // Update cache
-      await redisService.set(
-        `task:${id}`,
-        updatedTask,
-        'task' // entity type
-      );
-
-      // Invalidate calendar cache if dates changed
-      if (updateData.workPeriod) {
-        await redisService.invalidatePattern('calendar:*');
+      // Si expectedUpdatedAt est fourni, vérifier les conflits
+      if (expectedUpdatedAt && !force && !useAsync) {
+        try {
+          // Récupérer la tâche actuelle depuis Notion
+          const currentTask = await notionService.getTask(id);
+          
+          if (currentTask) {
+            const currentUpdatedAt = currentTask.updatedAt?.toISOString();
+            
+            // Comparer les timestamps
+            if (currentUpdatedAt && currentUpdatedAt !== expectedUpdatedAt) {
+              return res.status(409).json({
+                success: false,
+                error: "Conflict detected",
+                conflict: {
+                  type: "version_mismatch",
+                  expected: expectedUpdatedAt,
+                  current: currentUpdatedAt,
+                  message: "The task has been modified since you last fetched it"
+                },
+                data: currentTask // Renvoyer la version actuelle pour que le client puisse résoudre
+              });
+            }
+          }
+        } catch (error) {
+          // Si on ne peut pas récupérer la tâche, continuer avec l'update
+          console.warn(`Could not fetch task for conflict detection: ${error}`);
+        }
       }
 
-      return res.status(200).json({
-        success: true,
-        data: updatedTask,
-        meta: {
-          cached: true,
-          timestamp: new Date().toISOString()
+      if (useAsync) {
+        // ASYNC MODE: Queue for background sync
+        const startTime = Date.now();
+        
+        // Queue the update
+        await syncQueueService.queueTaskUpdate(id, updateData as UpdateTaskInput);
+        
+        // Get cached version for optimistic response
+        const cachedTask = await redisService.get(`task:${id}`) || {};
+        
+        const optimisticTask = {
+          ...cachedTask,
+          ...updateData,
+          id,
+          _pendingSync: true,
+          updatedAt: new Date().toISOString()
+        };
+        
+        const queueTime = Date.now() - startTime;
+        
+        // Record metrics
+        latencyMetricsService.recordRedisLatency(queueTime, 'task-update-queue');
+        
+        // Invalidate calendar cache if dates changed
+        if (updateData.workPeriod) {
+          await redisService.invalidatePattern('calendar:*');
         }
-      });
+
+        return res.status(200).json({
+          success: true,
+          data: optimisticTask,
+          syncStatus: {
+            synced: false,
+            lastSync: new Date().toISOString(),
+            conflicts: {
+              hasConflicts: false
+            },
+            pending: true
+          },
+          meta: {
+            cached: true,
+            timestamp: new Date().toISOString(),
+            version: optimisticTask.updatedAt,
+            mode: 'async',
+            queueTime: `${queueTime}ms`
+          }
+        });
+        
+      } else {
+        // SYNC MODE: Direct Notion call
+        const startTime = Date.now();
+        
+        const updatedTask = await notionService.updateTask(id, updateData as UpdateTaskInput);
+        
+        const notionTime = Date.now() - startTime;
+        
+        // Record metrics
+        latencyMetricsService.recordNotionLatency(notionTime, 'task-update-sync');
+
+        // Update cache
+        await redisService.set(
+          `task:${id}`,
+          updatedTask,
+          'task'
+        );
+
+        // Invalidate calendar cache if dates changed
+        if (updateData.workPeriod) {
+          await redisService.invalidatePattern('calendar:*');
+        }
+
+        // Get sync status after update
+        const syncStatus = await this.getSyncStatus(id, 'task');
+
+        return res.status(200).json({
+          success: true,
+          data: {
+            ...updatedTask,
+            updatedAt: updatedTask.updatedAt?.toISOString()
+          },
+          syncStatus,
+          meta: {
+            cached: true,
+            timestamp: new Date().toISOString(),
+            version: updatedTask.updatedAt?.toISOString(),
+            mode: 'sync',
+            notionTime: `${notionTime}ms`
+          }
+        });
+      }
       
     } catch (error) {
       console.error("Error updating task:", error);
@@ -343,7 +581,7 @@ export class TasksController {
    * Delete (archive) a task
    * DELETE /api/tasks/:id
    */
-  async deleteTask(req: Request, res: Response) {
+  deleteTask = async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       
@@ -354,22 +592,71 @@ export class TasksController {
         });
       }
 
-      // Archive task in Notion (soft delete)
-      await notionService.archiveTask(id);
+      const useAsync = req.query.async === 'true';
 
-      // Remove from cache
-      await redisService.del(`task:${id}`);
+      if (useAsync) {
+        // ASYNC MODE: Queue for background deletion
+        const startTime = Date.now();
+        
+        await syncQueueService.queueTaskDelete(id);
+        
+        // Remove from cache immediately for optimistic update
+        await redisService.del(`task:${id}`);
+        
+        // Invalidate calendar cache
+        await redisService.invalidatePattern('calendar:*');
+        
+        const queueTime = Date.now() - startTime;
+        
+        return res.status(200).json({
+          success: true,
+          message: "Task deletion queued",
+          syncStatus: {
+            synced: false,
+            lastSync: new Date().toISOString(),
+            conflicts: {
+              hasConflicts: false
+            },
+            pending: true
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            mode: 'async',
+            queueTime: `${queueTime}ms`
+          }
+        });
+      } else {
+        // SYNC MODE: Direct Notion call
+        const startTime = Date.now();
+        
+        // Archive task in Notion (soft delete)
+        await notionService.archiveTask(id);
+        
+        const notionTime = Date.now() - startTime;
 
-      // Invalidate calendar cache
-      await redisService.invalidatePattern('calendar:*');
+        // Remove from cache
+        await redisService.del(`task:${id}`);
 
-      return res.status(200).json({
-        success: true,
-        message: "Task archived successfully",
-        meta: {
-          timestamp: new Date().toISOString()
-        }
-      });
+        // Invalidate calendar cache
+        await redisService.invalidatePattern('calendar:*');
+
+        return res.status(200).json({
+          success: true,
+          message: "Task archived successfully",
+          syncStatus: {
+            synced: true,
+            lastSync: new Date().toISOString(),
+            conflicts: {
+              hasConflicts: false
+            }
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            mode: 'sync',
+            notionTime: `${notionTime}ms`
+          }
+        });
+      }
       
     } catch (error) {
       console.error("Error deleting task:", error);
