@@ -144,6 +144,57 @@ router.get("/calendar", tasksController.getCalendarTasks);
 
 /**
  * @swagger
+ * /api/v1/tasks/stats/today:
+ *   get:
+ *     summary: Get today's tasks statistics
+ *     description: Retrieve statistics for tasks scheduled for today
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: number
+ *                       example: 10
+ *                     completed:
+ *                       type: number
+ *                       example: 3
+ *                     inProgress:
+ *                       type: number
+ *                       example: 5
+ *                     notStarted:
+ *                       type: number
+ *                       example: 2
+ *                     byType:
+ *                       type: object
+ *                       properties:
+ *                         task:
+ *                           type: number
+ *                         holiday:
+ *                           type: number
+ *                         school:
+ *                           type: number
+ *                         remote:
+ *                           type: number
+ *       500:
+ *         description: Failed to fetch statistics
+ */
+router.get("/stats/today", tasksController.getTodayStats.bind(tasksController));
+
+/**
+ * @swagger
  * /api/v1/tasks/{id}:
  *   get:
  *     summary: Get a single task by ID

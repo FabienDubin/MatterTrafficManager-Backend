@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { authService } from '../services/auth.service';
 import { UserRole } from '../models/User.model';
 import logger from '../config/logger.config';
+import { activityTracker } from '../services/activity-tracker.service';
 
 /**
  * Extended Request interface with user property
@@ -52,6 +53,9 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
       role: decoded.role,
     };
 
+    // Track user activity
+    activityTracker.trackUserActivity(decoded.userId, decoded.email);
+    
     logger.debug(
       `Auth success - User ${decoded.email} (role: ${decoded.role}) accessing ${req.method} ${req.path}`
     );
@@ -69,7 +73,7 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 /**
  * Optional authentication middleware (doesn't fail if no token)
  */
-export function authenticateOptional(req: AuthRequest, res: Response, next: NextFunction): void {
+export function authenticateOptional(req: AuthRequest, _res: Response, next: NextFunction): void {
   try {
     const authHeader = req.headers.authorization;
 

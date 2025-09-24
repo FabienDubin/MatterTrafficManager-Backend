@@ -12,6 +12,7 @@ dotenv.config();
 import { requestLogger } from './middleware/logging.middleware';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { preloadMiddleware } from './middleware/preload.middleware';
+import { trackRequest } from './middleware/tracking.middleware';
 import { setupSwagger } from './config/swagger.config';
 import apiRoutes from './routes/index.route';
 import logger from './config/logger.config';
@@ -72,6 +73,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Request logging middleware
 app.use(requestLogger);
+
+// Track requests for metrics
+app.use(trackRequest);
 
 // Preload middleware for intelligent caching
 app.use(preloadMiddleware);

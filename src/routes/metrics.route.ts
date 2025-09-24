@@ -112,4 +112,46 @@ router.get("/dashboard", metricsController.getDashboard.bind(metricsController))
  */
 router.post("/reset", metricsController.resetMetrics.bind(metricsController));
 
+/**
+ * @swagger
+ * /api/v1/admin/metrics/active-users:
+ *   get:
+ *     summary: Get active users
+ *     tags: [Metrics]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Active users retrieved successfully
+ */
+router.get("/active-users", metricsController.getActiveUsers.bind(metricsController));
+
+/**
+ * @swagger
+ * /api/v1/admin/metrics/request-rate:
+ *   get:
+ *     summary: Get request rate metrics
+ *     tags: [Metrics]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Request rate metrics retrieved successfully
+ */
+router.get("/request-rate", metricsController.getRequestRate.bind(metricsController));
+
+/**
+ * @swagger
+ * /api/v1/admin/metrics/errors:
+ *   get:
+ *     summary: Get recent errors
+ *     tags: [Metrics]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Recent errors retrieved successfully
+ */
+router.get("/errors", metricsController.getRecentErrors.bind(metricsController));
+
 export default router;

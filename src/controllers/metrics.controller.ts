@@ -7,13 +7,14 @@ import { Request, Response } from "express";
 import { cacheMetricsService } from "../services/cache-metrics.service";
 import { latencyMetricsService } from "../services/latency-metrics.service";
 import syncQueueService from "../services/sync-queue.service";
+import { activityTracker } from "../services/activity-tracker.service";
 
 export class MetricsController {
   /**
    * Get cache performance metrics
    * GET /api/metrics/cache
    */
-  async getCacheMetrics(req: Request, res: Response) {
+  async getCacheMetrics(_req: Request, res: Response) {
     try {
       const metrics = cacheMetricsService.getMetrics();
       
@@ -35,7 +36,7 @@ export class MetricsController {
    * Get latency comparison metrics (Redis vs Notion)
    * GET /api/metrics/latency
    */
-  async getLatencyMetrics(req: Request, res: Response) {
+  async getLatencyMetrics(_req: Request, res: Response) {
     try {
       const metrics = latencyMetricsService.getMetrics();
       
@@ -83,7 +84,7 @@ export class MetricsController {
    * Get sync queue metrics
    * GET /api/metrics/queue
    */
-  async getQueueMetrics(req: Request, res: Response) {
+  async getQueueMetrics(_req: Request, res: Response) {
     try {
       const status = syncQueueService.getStatus();
       
@@ -117,7 +118,7 @@ export class MetricsController {
    * Get combined performance dashboard data
    * GET /api/metrics/dashboard
    */
-  async getDashboard(req: Request, res: Response) {
+  async getDashboard(_req: Request, res: Response) {
     try {
       const cache = cacheMetricsService.getMetrics();
       const latency = latencyMetricsService.getMetrics();
@@ -201,6 +202,72 @@ export class MetricsController {
       return res.status(500).json({
         success: false,
         error: "Failed to reset metrics"
+      });
+    }
+  }
+
+  /**
+   * Get active users
+   * GET /api/metrics/active-users
+   */
+  async getActiveUsers(_req: Request, res: Response) {
+    try {
+      const activeUsers = activityTracker.getActiveUsers();
+      
+      return res.status(200).json({
+        success: true,
+        data: activeUsers,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error fetching active users:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch active users"
+      });
+    }
+  }
+
+  /**
+   * Get request rate metrics
+   * GET /api/metrics/request-rate
+   */
+  async getRequestRate(_req: Request, res: Response) {
+    try {
+      const requestRate = activityTracker.getRequestRate();
+      
+      return res.status(200).json({
+        success: true,
+        data: requestRate,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error fetching request rate:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch request rate"
+      });
+    }
+  }
+
+  /**
+   * Get recent errors
+   * GET /api/metrics/errors
+   */
+  async getRecentErrors(_req: Request, res: Response) {
+    try {
+      const errors = activityTracker.getRecentErrors();
+      
+      return res.status(200).json({
+        success: true,
+        data: errors,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error fetching recent errors:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch recent errors"
       });
     }
   }
