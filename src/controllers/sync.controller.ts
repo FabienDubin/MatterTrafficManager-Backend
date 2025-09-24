@@ -26,9 +26,16 @@ export class SyncController {
         detectedAt: { $gte: oneHourAgo }
       });
       
-      // Get last successful sync from Redis metadata
+      // Get last successful sync from Redis metadata with default fallback
       const lastSyncKey = 'sync:last_successful';
-      const lastSync = await redisService.get(lastSyncKey);
+      let lastSync = await redisService.get(lastSyncKey);
+      
+      // If no sync timestamp exists, set a default and cache it
+      if (!lastSync) {
+        lastSync = new Date().toISOString();
+        // Set with TTL to avoid constant misses
+        await redisService.set(lastSyncKey, lastSync, 'sync');
+      }
       
       // Determine global status
       const status = this.determineGlobalStatus(

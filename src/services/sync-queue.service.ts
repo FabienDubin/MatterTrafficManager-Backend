@@ -158,6 +158,11 @@ class SyncQueueService extends EventEmitter {
       queueLength: this.queue.length
     });
 
+    // Restart processing if it was stopped
+    if (!this.processing && this.queue.length > 0) {
+      this.startProcessing();
+    }
+
     return true;
   }
 
@@ -165,23 +170,23 @@ class SyncQueueService extends EventEmitter {
    * Start processing queue items
    */
   private async startProcessing() {
-    if (this.processing) return;
+    if (this.processing) {
+      return;
+    }
     
     this.processing = true;
     
-    while (this.processing) {
-      if (this.queue.length > 0) {
-        const item = this.queue.shift();
-        if (item) {
-          await this.processItem(item);
-          // Rate limiting
-          await this.delay(this.RATE_LIMIT_DELAY);
-        }
-      } else {
-        // No items, wait a bit before checking again
-        await this.delay(1000);
+    while (this.queue.length > 0 && this.processing) {
+      const item = this.queue.shift();
+      if (item) {
+        await this.processItem(item);
+        // Rate limiting
+        await this.delay(this.RATE_LIMIT_DELAY);
       }
     }
+    
+    // No more items, stop processing
+    this.processing = false;
   }
 
   /**
@@ -246,6 +251,13 @@ class SyncQueueService extends EventEmitter {
         processingTime: `${processingTime}ms`,
         attempts: item.attempts
       });
+      
+      // Update last successful sync timestamp in Redis
+      await redisService.set(
+        'sync:last_successful',
+        new Date().toISOString(),
+        'sync'
+      );
 
       // Emit success event
       this.emit('item:success', { item, result, processingTime });
@@ -276,7 +288,13 @@ class SyncQueueService extends EventEmitter {
         
         // Requeue with delay
         setTimeout(() => {
+          // Don't use addToQueue here to avoid resetting attempts
           this.queue.push(item);
+          
+          // But we need to restart processing if it was stopped
+          if (!this.processing && this.queue.length > 0) {
+            this.startProcessing();
+          }
         }, backoffDelay);
 
         // Emit retry event
@@ -343,7 +361,7 @@ class SyncQueueService extends EventEmitter {
    * Get queue status
    */
   getStatus() {
-    return {
+    const status = {
       queueLength: this.queue.length,
       processing: this.processing,
       metrics: this.metrics,
@@ -357,6 +375,8 @@ class SyncQueueService extends EventEmitter {
         error: item.error
       }))
     };
+    
+    return status;
   }
 
   /**
