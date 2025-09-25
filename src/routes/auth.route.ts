@@ -7,7 +7,9 @@ import {
   loginSchema, 
   refreshTokenSchema, 
   logoutSchema, 
-  createUserSchema 
+  createUserSchema,
+  updateUserSchema,
+  resetPasswordSchema
 } from '../validators/auth.validator';
 
 /**
@@ -163,12 +165,18 @@ router.get(
  *             type: object
  *             required:
  *               - email
+ *               - firstName
+ *               - lastName
  *               - password
  *               - role
  *             properties:
  *               email:
  *                 type: string
  *                 format: email
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
  *               password:
  *                 type: string
  *                 minLength: 6
@@ -193,6 +201,182 @@ router.post(
   requireAdmin,
   validate(createUserSchema),
   authController.createUser
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/users:
+ *   get:
+ *     summary: Get all users (admin only)
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Items per page
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by email, first name or last name
+ *     responses:
+ *       200:
+ *         description: List of users retrieved successfully
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Insufficient permissions
+ */
+router.get(
+  '/users',
+  authenticate,
+  requireAdmin,
+  authController.getAllUsers
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/users/{id}:
+ *   put:
+ *     summary: Update a user (admin only)
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *                 enum: [admin, traffic_manager, chef_projet, direction]
+ *               memberId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: User updated successfully
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: User not found
+ *       409:
+ *         description: Email already exists
+ */
+router.put(
+  '/users/:id',
+  authenticate,
+  requireAdmin,
+  validate(updateUserSchema),
+  authController.updateUser
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/users/{id}:
+ *   delete:
+ *     summary: Delete a user (admin only)
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: User deleted successfully
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: User not found
+ */
+router.delete(
+  '/users/:id',
+  authenticate,
+  requireAdmin,
+  authController.deleteUser
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/users/{id}/reset-password:
+ *   patch:
+ *     summary: Reset user password (admin only)
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     temporaryPassword:
+ *                       type: string
+ *                     note:
+ *                       type: string
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: User not found
+ */
+router.patch(
+  '/users/:id/reset-password',
+  authenticate,
+  requireAdmin,
+  validate(resetPasswordSchema),
+  authController.resetPassword
 );
 
 export default router;

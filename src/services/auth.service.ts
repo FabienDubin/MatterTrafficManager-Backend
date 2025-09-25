@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { IUserDocument, UserRole } from '../models/User.model';
+import { IUser, IUserDocument, UserRole } from '../models/User.model';
 import { RefreshTokenModel, IRefreshTokenDocument } from '../models/RefreshToken.model';
 import { userRepository } from '../repositories/user.repository';
 import { authConfig } from '../config/auth.config';
@@ -30,6 +30,8 @@ export interface LoginResult extends AuthTokens {
   user: {
     id: string;
     email: string;
+    firstName: string;
+    lastName: string;
     role: UserRole;
     memberId?: string;
   };
@@ -85,6 +87,8 @@ export class AuthService {
         user: {
           id: user.id,
           email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
           role: user.role,
           ...(user.memberId && { memberId: user.memberId }),
         },
@@ -194,6 +198,8 @@ export class AuthService {
         user: {
           id: user.id,
           email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
           role: user.role,
           ...(user.memberId && { memberId: user.memberId }),
         },
@@ -248,6 +254,8 @@ export class AuthService {
    */
   async createUser(userData: {
     email: string;
+    firstName: string;
+    lastName: string;
     password: string;
     role: UserRole;
     memberId?: string | undefined;
@@ -263,6 +271,8 @@ export class AuthService {
       // Create user
       const userToCreate = {
         email: userData.email,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
         password: userData.password,
         role: userData.role,
         ...(userData.memberId && { memberId: userData.memberId }),
@@ -286,6 +296,152 @@ export class AuthService {
       logger.info(`All tokens invalidated for user: ${userId}`);
     } catch (error) {
       logger.error('Error invalidating user tokens:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all users (admin only)
+   */
+  async getAllUsers(page = 1, limit = 10, search?: string): Promise<{
+    users: Array<{
+      id: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+      role: UserRole;
+      memberId?: string;
+      lastLogin?: Date;
+      createdAt: Date;
+    }>;
+    total: number;
+    pages: number;
+  }> {
+    try {
+      const query = search
+        ? {
+            $or: [
+              { email: { $regex: search, $options: 'i' } },
+              { firstName: { $regex: search, $options: 'i' } },
+              { lastName: { $regex: search, $options: 'i' } },
+            ],
+          }
+        : {};
+
+      const users = await userRepository.findAll(query, page, limit);
+      const total = await userRepository.count(query);
+
+      return {
+        users: users.map(user => ({
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          ...(user.memberId && { memberId: user.memberId }),
+          ...(user.lastLogin && { lastLogin: user.lastLogin }),
+          createdAt: user.createdAt,
+        })),
+        total,
+        pages: Math.ceil(total / limit),
+      };
+    } catch (error) {
+      logger.error('Error getting all users:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update user
+   */
+  async updateUser(userId: string, updateData: {
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    role?: UserRole;
+    memberId?: string | null;
+  }): Promise<IUserDocument | null> {
+    try {
+      // If email is being changed, check if it already exists
+      if (updateData.email) {
+        const exists = await userRepository.emailExistsExcludingUser(updateData.email, userId);
+        if (exists) {
+          throw new Error('Email already exists');
+        }
+      }
+
+      // Convert null to undefined for memberId to match Partial<IUser>
+      const dataToUpdate: Partial<IUser> = {
+        ...(updateData.email && { email: updateData.email }),
+        ...(updateData.firstName && { firstName: updateData.firstName }),
+        ...(updateData.lastName && { lastName: updateData.lastName }),
+        ...(updateData.role && { role: updateData.role }),
+        ...(updateData.memberId !== undefined && updateData.memberId !== null && { memberId: updateData.memberId }),
+      };
+
+      const user = await userRepository.update(userId, dataToUpdate);
+      
+      if (!user) {
+        return null;
+      }
+
+      logger.info(`User updated: ${user.email}`);
+      return user;
+    } catch (error) {
+      logger.error('Error updating user:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete user (soft delete)
+   */
+  async deleteUser(userId: string): Promise<boolean> {
+    try {
+      // Invalidate all tokens
+      await this.invalidateAllUserTokens(userId);
+      
+      // Delete the user
+      const result = await userRepository.delete(userId);
+      
+      if (result) {
+        logger.info(`User deleted: ${userId}`);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      logger.error('Error deleting user:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reset user password
+   */
+  async resetPassword(userId: string): Promise<string> {
+    try {
+      // Generate a new random password
+      const newPassword = crypto.randomBytes(8).toString('hex');
+      
+      // Update user password
+      const user = await userRepository.updatePassword(userId, newPassword);
+      
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Mark that user must change password on next login
+      await userRepository.update(userId, { mustChangePassword: true });
+      
+      // Invalidate all tokens to force re-login
+      await this.invalidateAllUserTokens(userId);
+      
+      logger.info(`Password reset for user: ${user.email}`);
+      
+      return newPassword;
+    } catch (error) {
+      logger.error('Error resetting password:', error);
       throw error;
     }
   }

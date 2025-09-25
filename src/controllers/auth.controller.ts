@@ -127,6 +127,8 @@ export class AuthController {
         data: {
           id: user.id,
           email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
           role: user.role,
           memberId: user.memberId,
         },
@@ -172,6 +174,152 @@ export class AuthController {
       });
     } catch (error) {
       logger.error('Get current user controller error:', error);
+      next(error);
+    }
+  }
+
+  /**
+   * Get all users (admin only)
+   */
+  async getAllUsers(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const search = req.query.search as string | undefined;
+
+      const result = await authService.getAllUsers(page, limit, search);
+
+      res.status(200).json({
+        success: true,
+        data: result.users,
+        meta: {
+          total: result.total,
+          pages: result.pages,
+          page,
+          limit,
+        },
+      });
+    } catch (error) {
+      logger.error('Get all users controller error:', error);
+      next(error);
+    }
+  }
+
+  /**
+   * Update user (admin only)
+   */
+  async updateUser(
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+
+      const user = await authService.updateUser(id, updateData);
+
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          memberId: user.memberId,
+        },
+      });
+    } catch (error) {
+      logger.error('Update user controller error:', error);
+      
+      if (error instanceof Error && error.message === 'Email already exists') {
+        res.status(409).json({
+          success: false,
+          message: 'Email already exists',
+        });
+        return;
+      }
+      
+      next(error);
+    }
+  }
+
+  /**
+   * Delete user (admin only)
+   */
+  async deleteUser(
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+
+      const success = await authService.deleteUser(id);
+
+      if (!success) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'User deleted successfully',
+      });
+    } catch (error) {
+      logger.error('Delete user controller error:', error);
+      next(error);
+    }
+  }
+
+  /**
+   * Reset user password (admin only)
+   */
+  async resetPassword(
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+
+      const newPassword = await authService.resetPassword(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Password reset successfully',
+        data: {
+          temporaryPassword: newPassword,
+          note: 'User must change password on next login',
+        },
+      });
+    } catch (error) {
+      logger.error('Reset password controller error:', error);
+      
+      if (error instanceof Error && error.message === 'User not found') {
+        res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+        return;
+      }
+      
       next(error);
     }
   }

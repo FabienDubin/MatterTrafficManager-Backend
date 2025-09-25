@@ -116,13 +116,30 @@ export class UserRepository {
   }
 
   /**
-   * List all users (without passwords)
+   * List all users (without passwords) with pagination
    */
-  async findAll(): Promise<IUserDocument[]> {
+  async findAll(query: any = {}, page = 1, limit = 10): Promise<IUserDocument[]> {
     try {
-      return await UserModel.find().exec();
+      const skip = (page - 1) * limit;
+      return await UserModel.find(query)
+        .skip(skip)
+        .limit(limit)
+        .sort('-createdAt')
+        .exec();
     } catch (error) {
       logger.error('Error finding all users:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Count users matching query
+   */
+  async count(query: any = {}): Promise<number> {
+    try {
+      return await UserModel.countDocuments(query).exec();
+    } catch (error) {
+      logger.error('Error counting users:', error);
       throw error;
     }
   }
@@ -150,6 +167,57 @@ export class UserRepository {
       return count > 0;
     } catch (error) {
       logger.error('Error checking email existence:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if email exists excluding a specific user
+   */
+  async emailExistsExcludingUser(email: string, userId: string): Promise<boolean> {
+    try {
+      const count = await UserModel.countDocuments({
+        email: email.toLowerCase(),
+        _id: { $ne: userId }
+      }).exec();
+      return count > 0;
+    } catch (error) {
+      logger.error('Error checking email existence:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update user (alias for updateById for consistency with service layer)
+   */
+  async update(id: string, updateData: Partial<IUser>): Promise<IUserDocument | null> {
+    return this.updateById(id, updateData);
+  }
+
+  /**
+   * Delete user (alias for deleteById for consistency with service layer)
+   */
+  async delete(id: string): Promise<boolean> {
+    return this.deleteById(id);
+  }
+
+  /**
+   * Update user password
+   */
+  async updatePassword(id: string, newPassword: string): Promise<IUserDocument | null> {
+    try {
+      const user = await UserModel.findById(id).select('+password').exec();
+      if (!user) {
+        return null;
+      }
+      
+      user.password = newPassword;
+      await user.save(); // This will trigger the pre-save hook to hash the password
+      
+      logger.info(`Password updated for user ID: ${id}`);
+      return user;
+    } catch (error) {
+      logger.error('Error updating password:', error);
       throw error;
     }
   }

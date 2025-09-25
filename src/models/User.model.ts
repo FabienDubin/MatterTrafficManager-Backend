@@ -17,6 +17,8 @@ export enum UserRole {
  */
 export interface IUser {
   email: string;
+  firstName: string;
+  lastName: string;
   password: string;
   role: UserRole;
   memberId?: string;
@@ -49,6 +51,16 @@ const userSchema = new Schema<IUserDocument>(
       lowercase: true,
       trim: true,
       index: true,
+    },
+    firstName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    lastName: {
+      type: String,
+      required: true,
+      trim: true,
     },
     password: {
       type: String,

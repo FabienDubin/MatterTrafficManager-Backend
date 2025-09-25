@@ -231,17 +231,24 @@ export class WebhookController {
         return;
       }
 
-      const hasToken = !!config.webhookVerificationToken;
+      // Check for webhook token in environment variable OR in config
+      const envToken = process.env.WEBHOOK_VERIFICATION_TOKEN || process.env.NOTION_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET;
+      const hasConfigToken = !!config.webhookVerificationToken;
+      const hasEnvToken = !!envToken;
+      const hasToken = hasConfigToken || hasEnvToken;
       
       // Try to decrypt token to verify it's valid
       let tokenValid = false;
-      if (hasToken) {
+      if (hasConfigToken) {
         try {
           const decrypted = config.decryptWebhookToken();
           tokenValid = !!decrypted && decrypted.length > 0;
         } catch {
           tokenValid = false;
         }
+      } else if (hasEnvToken) {
+        // If using env variable, consider it valid if it exists
+        tokenValid = envToken.length > 0;
       }
 
       // Check recent webhook activity
@@ -255,6 +262,7 @@ export class WebhookController {
         tokenValid,
         recentActivity: !!recentWebhook,
         lastWebhookAt: recentWebhook?.createdAt,
+        configSource: hasEnvToken ? 'environment' : hasConfigToken ? 'database' : 'none',
         status: tokenValid && recentWebhook ? 'healthy' :
                 tokenValid ? 'configured_no_activity' :
                 hasToken ? 'invalid_token' : 'not_configured',
@@ -311,6 +319,98 @@ export class WebhookController {
       // Don't throw error, webhook processing should continue
     }
   }
+
+  /**
+   * Get webhook logs with pagination and filters
+   */
+  getWebhookLogs = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const {
+        page = 1,
+        limit = 20,
+        entityType,
+        status,
+        startDate,
+        endDate,
+      } = req.query;
+
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      const skip = (pageNum - 1) * limitNum;
+
+      // Build query filter
+      const filter: any = { syncMethod: 'webhook' };
+      
+      if (entityType) {
+        filter.entityType = entityType;
+      }
+      
+      if (status) {
+        filter.syncStatus = status;
+      }
+      
+      if (startDate || endDate) {
+        filter.createdAt = {};
+        if (startDate) {
+          filter.createdAt.$gte = new Date(startDate as string);
+        }
+        if (endDate) {
+          filter.createdAt.$lte = new Date(endDate as string);
+        }
+      }
+
+      // Get total count
+      const total = await SyncLogModel.countDocuments(filter);
+
+      // Get paginated logs
+      const logs = await SyncLogModel.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean();
+
+      // Get statistics
+      const stats = await SyncLogModel.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: '$syncStatus',
+            count: { $sum: 1 },
+            avgDuration: { $avg: '$duration' },
+          }
+        }
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          logs,
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total,
+            totalPages: Math.ceil(total / limitNum),
+          },
+          stats: {
+            total,
+            byStatus: stats.reduce((acc, s) => {
+              acc[s._id] = {
+                count: s.count,
+                avgDuration: Math.round(s.avgDuration || 0),
+              };
+              return acc;
+            }, {} as any),
+          }
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error fetching webhook logs:', error);
+      res.status(500).json({
+        error: 'Failed to fetch webhook logs',
+        code: 'LOGS_ERROR',
+      });
+    }
+  };
 
   /**
    * Map database ID to entity type
