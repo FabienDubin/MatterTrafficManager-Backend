@@ -75,14 +75,17 @@ async function seedTestUsers() {
       // Create new user
       const newUser = new UserModel({
         email: userData.email,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
         password: userData.password,
         role: userData.role,
+        ...(userData.memberId && { memberId: userData.memberId }),
         mustChangePassword: false, // Pour les tests, pas besoin de changer
         createdAt: new Date(),
       });
 
       await newUser.save();
-      logger.info(`✅ Created user: ${userData.email} (${userData.description})`);
+      logger.info(`✅ Created user: ${userData.firstName} ${userData.lastName} - ${userData.email} (${userData.description})`);
       createdCount++;
     }
 
@@ -95,7 +98,7 @@ async function seedTestUsers() {
       logger.info('═══════════════════════════════════════');
       logger.info('Test credentials:');
       TEST_USERS.forEach(user => {
-        logger.info(`📧 ${user.email} | 🔑 ${user.password} | 👤 ${user.role}`);
+        logger.info(`👤 ${user.firstName} ${user.lastName} | 📧 ${user.email} | 🔑 ${user.password} | 🛡️ ${user.role}`);
       });
     }
 
