@@ -322,10 +322,110 @@ export class TasksCrudController {
       }
 
       if (useAsync) {
-        // ASYNC MODE: Queue for background sync
+        // ASYNC MODE: Queue for background sync with conflict detection
         const startTime = Date.now();
         
-        // Queue the update
+        // DÉTECTION DE CONFLITS (même en mode async)
+        let schedulingConflicts: any[] = [];
+        let conflictDetectionMethod = 'none';
+        
+        // Only check conflicts if we're updating dates or members
+        if (updateData.workPeriod || updateData.assignedMembers) {
+          // Build what the updated task will look like
+          const currentTask = await redisService.get(`task:${id}`);
+          const taskForConflictCheck = currentTask ? {
+            ...currentTask,
+            ...updateData,
+            id
+          } : {
+            ...updateData,
+            id
+          };
+          
+          // If we have work period and assigned members
+          if (taskForConflictCheck.workPeriod?.startDate && 
+              taskForConflictCheck.workPeriod?.endDate && 
+              taskForConflictCheck.assignedMembers && 
+              taskForConflictCheck.assignedMembers.length > 0) {
+            
+            console.log('[ASYNC CONFLICT CHECK] Capturing tasks for conflict detection...');
+            
+            const membersToCheck = taskForConflictCheck.assignedMembers;
+            const relevantTasks: any[] = [];
+            
+            try {
+              // 1. D'ABORD essayer le cache Redis
+              const cacheKey = `tasks:calendar:start=2025-08-26:end=2025-10-25`;
+              const cachedTasks = await redisService.get(cacheKey);
+              
+              if (cachedTasks && Array.isArray(cachedTasks)) {
+                console.log(`[ASYNC CONFLICT CHECK] Using cached tasks: ${cachedTasks.length} total tasks`);
+                conflictDetectionMethod = 'cache';
+                
+                // Filter for tasks with overlapping members
+                for (const task of cachedTasks) {
+                  if (task.id !== id && 
+                      task.assignedMembers && 
+                      membersToCheck &&
+                      task.assignedMembers.some((m: string) => membersToCheck.includes(m))) {
+                    relevantTasks.push(task);
+                  }
+                }
+                
+                console.log(`[ASYNC CONFLICT CHECK] Found ${relevantTasks.length} relevant tasks for conflict check`);
+              } else {
+                // 2. SI PAS DE CACHE → Approche HYBRIDE avec Notion + rate limiter
+                console.log('[ASYNC CONFLICT CHECK] No cache available, using HYBRID approach...');
+                conflictDetectionMethod = 'notion-hybrid';
+                
+                try {
+                  console.log('[ASYNC CONFLICT CHECK] Using rate-limited Notion fallback...');
+                  
+                  const memberTasks = await notionRateLimiter.scheduleHighPriority(async () => {
+                    console.log('[ASYNC CONFLICT CHECK] Executing Notion query through rate limiter...');
+                    const startDate = taskForConflictCheck.workPeriod?.startDate || new Date().toISOString();
+                    const endDate = taskForConflictCheck.workPeriod?.endDate || new Date().toISOString();
+                    return notionService.getTasksForCalendarView(
+                      new Date(startDate),
+                      new Date(endDate)
+                    );
+                  });
+                  
+                  // Filter for relevant members
+                  for (const task of memberTasks) {
+                    if (task.id !== id && 
+                        task.assignedMembers && 
+                        membersToCheck &&
+                        task.assignedMembers.some((m: string) => membersToCheck.includes(m))) {
+                      relevantTasks.push(task);
+                    }
+                  }
+                  
+                  console.log(`[ASYNC CONFLICT CHECK] Found ${relevantTasks.length} relevant tasks from Notion`);
+                  console.log('[ASYNC CONFLICT CHECK] Rate limiter stats:', notionRateLimiter.getStats());
+                  
+                } catch (error) {
+                  console.error('[ASYNC CONFLICT CHECK] Error fetching from Notion:', error);
+                  // Continue without conflicts
+                }
+              }
+              
+              // 3. Détecter les conflits avec les tâches capturées
+              schedulingConflicts = await tasksConflictService.checkSchedulingConflictsWithTasks(
+                taskForConflictCheck as any,
+                relevantTasks
+              );
+              
+            } catch (error) {
+              console.error('[ASYNC CONFLICT CHECK] Error capturing tasks for conflict detection:', error);
+              // Continue without conflicts rather than failing the update
+            }
+          }
+          
+          console.log('[ASYNC CONFLICT CHECK] Found conflicts:', schedulingConflicts);
+        }
+        
+        // Queue the update (après la détection de conflits)
         await syncQueueService.queueTaskUpdate(id, updateData as UpdateTaskInput);
         
         // Get cached version for optimistic response
@@ -344,7 +444,7 @@ export class TasksCrudController {
         // Record metrics
         latencyMetricsService.recordRedisLatency(queueTime, 'task-update-queue');
         
-        // Invalidate calendar cache if dates changed
+        // Invalidate calendar cache if dates changed (APRÈS la détection de conflits)
         if (updateData.workPeriod) {
           await redisService.invalidatePattern('calendar:*');
         }
@@ -352,11 +452,13 @@ export class TasksCrudController {
         return res.status(200).json({
           success: true,
           data: optimisticTask,
+          conflicts: schedulingConflicts, // Ajouter les conflits détectés
           syncStatus: {
             synced: false,
             lastSync: new Date().toISOString(),
             conflicts: {
-              hasConflicts: false
+              hasConflicts: schedulingConflicts.length > 0, // Basé sur la détection réelle
+              count: schedulingConflicts.length // Nombre de conflits
             },
             pending: true
           },
@@ -365,7 +467,9 @@ export class TasksCrudController {
             timestamp: new Date().toISOString(),
             version: optimisticTask.updatedAt,
             mode: 'async',
-            queueTime: `${queueTime}ms`
+            queueTime: `${queueTime}ms`,
+            conflictDetectionMethod, // Pour debug
+            conflictsDetected: schedulingConflicts.length // Nombre de conflits
           }
         });
         
