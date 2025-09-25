@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { tasksController } from "../controllers/tasks.controller";
+import { tasksConflictController } from "../controllers/tasks/tasks-conflict.controller";
 import { authenticate } from "../middleware/auth.middleware";
 
 /**
@@ -385,5 +386,55 @@ router.delete("/:id", tasksController.deleteTask);
  *         description: Failed to process batch update
  */
 router.post("/batch", tasksController.batchUpdateTasks);
+
+// =============== CONFLICT DETECTION ROUTES ===============
+
+/**
+ * @swagger
+ * /api/v1/tasks/conflicts/preview:
+ *   post:
+ *     summary: Preview conflicts before saving
+ *     description: Check what conflicts would occur with the provided task data
+ *     tags: [Tasks - Conflicts]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post("/conflicts/preview", tasksConflictController.previewConflicts);
+
+/**
+ * @swagger
+ * /api/v1/tasks/conflicts/batch:
+ *   post:
+ *     summary: Batch check conflicts
+ *     description: Check conflicts for multiple tasks
+ *     tags: [Tasks - Conflicts]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post("/conflicts/batch", tasksConflictController.batchCheckConflicts);
+
+/**
+ * @swagger
+ * /api/v1/tasks/conflicts/stats:
+ *   get:
+ *     summary: Get conflict statistics
+ *     description: Get statistics about conflicts for a date range
+ *     tags: [Tasks - Conflicts]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get("/conflicts/stats", tasksConflictController.getConflictStats);
+
+/**
+ * @swagger
+ * /api/v1/tasks/{id}/conflicts:
+ *   get:
+ *     summary: Check conflicts for a task
+ *     description: Get all scheduling conflicts for a specific task
+ *     tags: [Tasks - Conflicts]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get("/:id/conflicts", tasksConflictController.checkTaskConflicts);
 
 export default router;

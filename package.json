@@ -39,6 +39,7 @@
     "@upstash/redis": "^1.35.3",
     "axios": "^1.7.0",
     "bcrypt": "^6.0.0",
+    "bottleneck": "^2.19.5",
     "cors": "^2.8.0",
     "dataloader": "^2.2.3",
     "date-fns": "^3.6.0",
