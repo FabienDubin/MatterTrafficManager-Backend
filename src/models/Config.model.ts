@@ -8,7 +8,7 @@ export interface IConfig extends Document {
   key: string; // Clé unique de configuration
   value: any; // Valeur de configuration (flexible)
   description?: string; // Description de la configuration
-  category: "sync" | "cache" | "notification" | "general";
+  category: "sync" | "cache" | "notification" | "general" | "calendar";
   isEditable: boolean; // Si modifiable depuis l'UI admin
   dataType: "string" | "number" | "boolean" | "json" | "array";
   defaultValue?: any;
@@ -55,7 +55,7 @@ const ConfigSchema: Schema = new Schema(
     },
     category: {
       type: String,
-      enum: ['sync', 'cache', 'notification', 'general'],
+      enum: ['sync', 'cache', 'notification', 'general', 'calendar'],
       default: 'general',
       required: true,
       index: true,
@@ -246,6 +246,61 @@ ConfigSchema.statics.initDefaults = async function(): Promise<void> {
       category: 'general',
       dataType: 'boolean',
       defaultValue: false,
+    },
+    // Calendar configuration
+    {
+      key: 'CALENDAR_DAY_VIEW_FIELDS',
+      value: JSON.stringify(['title', 'project', 'client']),
+      description: 'Champs à afficher dans la vue jour',
+      category: 'calendar',
+      dataType: 'json',
+      defaultValue: JSON.stringify(['title', 'project', 'client']),
+      isEditable: true,
+    },
+    {
+      key: 'CALENDAR_WEEK_VIEW_FIELDS',
+      value: JSON.stringify(['title', 'member']),
+      description: 'Champs à afficher dans la vue semaine',
+      category: 'calendar',
+      dataType: 'json',
+      defaultValue: JSON.stringify(['title', 'member']),
+      isEditable: true,
+    },
+    {
+      key: 'CALENDAR_MONTH_VIEW_FIELDS',
+      value: JSON.stringify(['title']),
+      description: 'Champs à afficher dans la vue mois',
+      category: 'calendar',
+      dataType: 'json',
+      defaultValue: JSON.stringify(['title']),
+      isEditable: true,
+    },
+    {
+      key: 'CALENDAR_TITLE_MAX_LENGTH_DAY',
+      value: 30,
+      description: 'Longueur max du titre en vue jour',
+      category: 'calendar',
+      dataType: 'number',
+      defaultValue: 30,
+      isEditable: true,
+    },
+    {
+      key: 'CALENDAR_TITLE_MAX_LENGTH_WEEK',
+      value: 20,
+      description: 'Longueur max du titre en vue semaine',
+      category: 'calendar',
+      dataType: 'number',
+      defaultValue: 20,
+      isEditable: true,
+    },
+    {
+      key: 'CALENDAR_TITLE_MAX_LENGTH_MONTH',
+      value: 15,
+      description: 'Longueur max du titre en vue mois',
+      category: 'calendar',
+      dataType: 'number',
+      defaultValue: 15,
+      isEditable: true,
     },
     {
       key: 'MAINTENANCE_MODE',
