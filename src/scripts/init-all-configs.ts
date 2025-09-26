@@ -184,6 +184,15 @@ const ALL_CONFIGS = [
     defaultValue: 15,
     isEditable: true,
   },
+  {
+    key: 'SHOW_WEEKENDS',
+    value: true,
+    description: 'Afficher les weekends dans le calendrier',
+    category: 'calendar',
+    dataType: 'boolean',
+    defaultValue: true,
+    isEditable: true,
+  },
 ];
 
 async function initConfigs() {
