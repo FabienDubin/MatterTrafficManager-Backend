@@ -92,18 +92,25 @@ export class CalendarService extends NotionBaseService {
 
         const allTasks = allResults
           .map(notionPageToTask)
-          .filter(task => task.workPeriod?.startDate && task.workPeriod?.endDate);
+          .filter(task => task.workPeriod?.startDate); // On garde les tâches même sans endDate
 
         // Filtrer pour ne garder que les tâches qui chevauchent la période demandée
         // Une tâche chevauche si : taskEnd >= startDate ET taskStart <= endDate
         const tasks = allTasks.filter(task => {
-          // Vérifier que les dates existent (déjà filtré mais TypeScript ne le sait pas)
-          if (!task.workPeriod?.startDate || !task.workPeriod?.endDate) {
+          // Vérifier que la date de début existe
+          if (!task.workPeriod?.startDate) {
             return false;
           }
           
           const taskStart = new Date(task.workPeriod.startDate);
-          const taskEnd = new Date(task.workPeriod.endDate);
+          // Si pas de date de fin, on utilise la date de début + 1 jour par défaut (tâche journée complète)
+          const taskEnd = task.workPeriod?.endDate 
+            ? new Date(task.workPeriod.endDate)
+            : (() => {
+                const endOfDay = new Date(taskStart);
+                endOfDay.setHours(23, 59, 59, 999);
+                return endOfDay;
+              })();
           const periodStart = new Date(startDate);
           const periodEnd = new Date(endDate);
           

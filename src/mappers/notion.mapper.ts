@@ -59,6 +59,7 @@ export function mapTaskType(notionTaskType: string | null): 'task' | 'holiday' |
     'Télétravail': 'remote',
     'Teletravail': 'remote',
     'Remote': 'remote',
+    'TT': 'remote', // Ajout de TT pour télétravail
     
     // English fallback values
     'task': 'task',
@@ -237,7 +238,7 @@ export function createNotionTaskProperties(input: any) {
       'task': 'Tache',
       'holiday': 'Congé', 
       'school': 'Formation',
-      'remote': 'Télétravail'
+      'remote': 'TT' // Utiliser TT comme valeur dans Notion pour télétravail
     };
     properties[TASK_PROPERTY_IDS.taskType] = {
       status: { name: taskTypeMap[input.taskType] || 'Tache' },
