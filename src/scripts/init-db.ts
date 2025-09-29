@@ -19,11 +19,6 @@ dotenv.config();
  */
 
 const REQUIRED_COLLECTIONS = [
-  'tasks',
-  'members',
-  'projects',
-  'clients',
-  'teams',
   'users',
   'refreshtokens',
   'syncqueues',
@@ -55,7 +50,7 @@ async function initializeConfigs() {
   logger.info('=== Initializing Default Configurations ===');
   
   try {
-    // await ConfigModel.initDefaults(); // TODO: Implement this method
+    await ConfigModel.initDefaults();
     logger.info('✅ Default configurations initialized');
     
     // Afficher les configurations créées

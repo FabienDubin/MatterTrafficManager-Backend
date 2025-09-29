@@ -332,7 +332,7 @@ export class BatchResolverService {
     data.tasks?.forEach(task => {
       task.assignedMembers?.forEach(id => memberIds.add(id));
       if (task.projectId) projectIds.add(task.projectId);
-      if (task.client) clientIds.add(task.client);
+      // Note: task.client is a name (from rollup), not an ID - will get clientId from project
       if (task.teams && task.teams.length > 0) {
         task.teams.forEach(teamId => teamIds.add(teamId));
       }
@@ -342,6 +342,12 @@ export class BatchResolverService {
     data.projects?.forEach(project => {
       if (project.client) clientIds.add(project.client);
     });
+    
+    // Ajouter les clientIds depuis les tasks qui ont un projectId
+    // On doit d'abord charger les projets pour obtenir leurs clientIds
+    const taskProjectIds = data.tasks
+      ?.filter(task => task.projectId)
+      .map(task => task.projectId as string) || [];
 
     // Extraire les IDs depuis les teams
     data.teams?.forEach(team => {
@@ -359,12 +365,21 @@ export class BatchResolverService {
     });
 
     // Charger toutes les données en parallèle (batch automatique grâce à DataLoader)
-    const [members, projects, clients, teams] = await Promise.all([
+    const [members, projects, teams] = await Promise.all([
       Promise.resolve(membersPreload), // Déjà chargé
       projectIds.size > 0 ? this.loadProjects(Array.from(projectIds)) : [],
-      clientIds.size > 0 ? this.loadClients(Array.from(clientIds)) : [],
       teamIds.size > 0 ? this.loadTeams(Array.from(teamIds)) : [],
     ]);
+    
+    // Maintenant qu'on a les projets, on peut extraire les clientIds
+    projects.forEach(project => {
+      if (project?.client) {
+        clientIds.add(project.client);
+      }
+    });
+    
+    // Charger les clients après avoir collecté tous les IDs
+    const clients = clientIds.size > 0 ? await this.loadClients(Array.from(clientIds)) : [];
 
     // Créer des maps pour un accès rapide
     const memberMap = new Map(members.filter(m => m !== null).map(m => [m!.id, m]));
@@ -395,11 +410,17 @@ export class BatchResolverService {
           .map(teamId => teamMap.get(teamId))
           .filter(Boolean);
 
+        // Obtenir le clientId depuis le projet
+        const projectData = task.projectId ? projectMap.get(task.projectId) : null;
+        const clientId = projectData?.client || null;
+        const clientData = clientId ? clientMap.get(clientId) : null;
+        
         return {
           ...task,
+          clientId, // Ajouter l'ID du client pour les couleurs
           assignedMembersData,
-          projectData: task.projectId ? projectMap.get(task.projectId) : null,
-          clientData: task.client ? clientMap.get(task.client) : null,
+          projectData,
+          clientData,
           teamsData: task.teams ? task.teams.map(teamId => teamMap.get(teamId)).filter(Boolean) : [], // Added null check for teams
           involvedTeamIds: Array.from(involvedTeamIds),
           involvedTeamsData

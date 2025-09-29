@@ -18,6 +18,8 @@ import apiRoutes from './routes/index.route';
 import logger from './config/logger.config';
 import { cacheRefreshJob } from './jobs/cache-refresh.job';
 import { preloadService } from './services/preload.service';
+import { ConfigModel } from './models/Config.model';
+import { TaskSchedulingConflictModel } from './models/TaskSchedulingConflict.model';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -123,6 +125,24 @@ const connectDB = async (): Promise<void> => {
 const startServer = async (): Promise<void> => {
   try {
     await connectDB();
+
+    // Initialize default configurations
+    try {
+      await ConfigModel.initDefaults();
+      logger.info('Default configurations initialized');
+    } catch (error) {
+      logger.error('Failed to initialize default configurations', { error });
+      // Non-blocking error - continue server startup
+    }
+
+    // Ensure TaskSchedulingConflict collection exists (does NOT reinitialize if exists)
+    try {
+      // This only creates indexes, doesn't drop or reinitialize data
+      await TaskSchedulingConflictModel.init();
+      logger.info('TaskSchedulingConflict model initialized');
+    } catch (error) {
+      logger.debug('TaskSchedulingConflict model init error (non-blocking):', error);
+    }
 
     // Start cache preloading if enabled
     if (process.env.PRELOAD_ON_STARTUP !== 'false') {

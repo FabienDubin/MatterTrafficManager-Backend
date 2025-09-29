@@ -338,14 +338,23 @@ ConfigSchema.statics.initDefaults = async function(): Promise<void> {
       defaultValue: false,
       isEditable: true,
     },
+    {
+      key: 'CLIENT_COLORS',
+      value: {},
+      description: 'Configuration des couleurs par client (ID client -> couleur hex)',
+      category: 'calendar',
+      dataType: 'json',
+      defaultValue: {},
+      isEditable: true,
+    },
   ];
   
   for (const config of defaultConfigs) {
-    await this.findOneAndUpdate(
-      { key: config.key },
-      config,
-      { upsert: true, new: true }
-    );
+    // Only create if doesn't exist, don't overwrite existing values
+    const existing = await this.findOne({ key: config.key });
+    if (!existing) {
+      await this.create(config);
+    }
   }
 };
 

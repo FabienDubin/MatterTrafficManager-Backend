@@ -41,6 +41,42 @@ export function extractSelect(property: any): string | null {
   return property?.select?.name ?? property?.status?.name ?? null;
 }
 
+/**
+ * Map French task type values from Notion to English values used in the backend
+ */
+export function mapTaskType(notionTaskType: string | null): 'task' | 'holiday' | 'school' | 'remote' | null {
+  if (!notionTaskType) return null;
+  
+  const typeMap: Record<string, 'task' | 'holiday' | 'school' | 'remote'> = {
+    // French values from Notion
+    'Tâche': 'task',
+    'Tache': 'task',
+    'Congé': 'holiday',
+    'Congés': 'holiday',
+    'Formation': 'school',
+    'École': 'school',
+    'Ecole': 'school',
+    'Télétravail': 'remote',
+    'Teletravail': 'remote',
+    'Remote': 'remote',
+    
+    // English fallback values
+    'task': 'task',
+    'holiday': 'holiday',
+    'school': 'school',
+    'remote': 'remote'
+  };
+  
+  // Case-insensitive lookup
+  const normalizedType = notionTaskType.trim();
+  const mappedType = typeMap[normalizedType] || 
+                     typeMap[normalizedType.toLowerCase()] ||
+                     'task'; // Default to 'task' if unknown
+  
+  // Removed console.log - mapping is working correctly now
+  return mappedType;
+}
+
 export function extractDate(property: any): { start: Date | null; end: Date | null } {
   if (!property?.date) {
     return { start: null, end: null };
@@ -84,6 +120,10 @@ export function notionPageToTask(page: any): NotionTask {
   const props = page.properties;
   const dateRange = extractDate(props[TASK_PROPERTY_IDS.workPeriod]);
 
+  // Extract and map task type from French to English
+  const rawTaskType = extractSelect(props[TASK_PROPERTY_IDS.taskType]);
+  const mappedTaskType = mapTaskType(rawTaskType);
+
   const task: NotionTask = {
     id: page.id,
     title: extractTitle(props[TASK_PROPERTY_IDS.title]),
@@ -93,7 +133,7 @@ export function notionPageToTask(page: any): NotionTask {
     },
     assignedMembers: extractRelationIds(props[TASK_PROPERTY_IDS.assignedMembers]),
     projectId: extractRelationIds(props[TASK_PROPERTY_IDS.projectId])[0] || null,
-    taskType: extractSelect(props[TASK_PROPERTY_IDS.taskType]) as any,
+    taskType: mappedTaskType as any,
     status: extractSelect(props[TASK_PROPERTY_IDS.status]) as any,
     notes: extractRichText(props[TASK_PROPERTY_IDS.notes]),
     billedHours: extractNumber(props[TASK_PROPERTY_IDS.billedHours]),

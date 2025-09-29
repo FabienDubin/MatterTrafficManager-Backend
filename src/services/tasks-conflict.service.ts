@@ -1,4 +1,5 @@
 import { ConflictLogModel } from "../models/ConflictLog.model";
+import { TaskSchedulingConflictModel } from "../models/TaskSchedulingConflict.model";
 import { redisService } from "./redis.service";
 import { NotionTask, NotionMember } from "../types/notion.types";
 import { SchedulingConflict } from "../controllers/tasks/tasks-conflict.controller";
@@ -418,6 +419,79 @@ export class TasksConflictService {
     }
 
     return dailyHours;
+  }
+
+  /**
+   * Save conflicts to MongoDB for persistence
+   */
+  async saveConflicts(taskId: string, conflicts: SchedulingConflict[]): Promise<void> {
+    try {
+      // Use the bulk save method from the model
+      await TaskSchedulingConflictModel.bulkSaveConflicts(taskId, conflicts);
+      console.log(`[CONFLICT PERSIST] Saved ${conflicts.length} conflicts for task ${taskId}`);
+    } catch (error) {
+      console.error(`Error saving conflicts for task ${taskId}:`, error);
+      // Don't throw - conflict saving is not critical
+    }
+  }
+
+  /**
+   * Get conflicts from MongoDB for multiple tasks
+   */
+  async getConflictsForTasks(taskIds: string[]): Promise<Map<string, SchedulingConflict[]>> {
+    const conflictsMap = new Map<string, SchedulingConflict[]>();
+    
+    try {
+      // Batch query for all task conflicts
+      const conflicts = await TaskSchedulingConflictModel.findActiveForTasks(taskIds);
+      
+      // Group conflicts by taskId
+      for (const conflict of conflicts) {
+        const taskConflicts = conflictsMap.get(conflict.taskId) || [];
+        taskConflicts.push({
+          type: conflict.type,
+          message: conflict.message,
+          memberId: conflict.memberId,
+          memberName: conflict.memberName || undefined,
+          conflictingTaskId: conflict.conflictingTaskId || undefined,
+          conflictingTaskTitle: conflict.conflictingTaskTitle || undefined,
+          severity: conflict.severity
+        } as SchedulingConflict);
+        conflictsMap.set(conflict.taskId, taskConflicts);
+      }
+      
+      console.log(`[CONFLICT PERSIST] Loaded conflicts for ${conflictsMap.size}/${taskIds.length} tasks`);
+    } catch (error) {
+      console.error('Error loading conflicts from MongoDB:', error);
+    }
+    
+    return conflictsMap;
+  }
+
+  /**
+   * Resolve conflicts for a task (delete them instead of marking as resolved)
+   */
+  async resolveConflictsForTask(taskId: string): Promise<void> {
+    try {
+      // Delete conflicts instead of marking them as resolved
+      // We don't need to keep resolved conflicts in the database
+      await TaskSchedulingConflictModel.deleteForTask(taskId);
+      console.log(`[CONFLICT PERSIST] Deleted resolved conflicts for task ${taskId}`);
+    } catch (error) {
+      console.error(`Error deleting resolved conflicts for task ${taskId}:`, error);
+    }
+  }
+
+  /**
+   * Delete all conflicts for a task (used when task is deleted)
+   */
+  async deleteConflictsForTask(taskId: string): Promise<void> {
+    try {
+      await TaskSchedulingConflictModel.deleteForTask(taskId);
+      console.log(`[CONFLICT PERSIST] Deleted conflicts for task ${taskId}`);
+    } catch (error) {
+      console.error(`Error deleting conflicts for task ${taskId}:`, error);
+    }
   }
 }
 

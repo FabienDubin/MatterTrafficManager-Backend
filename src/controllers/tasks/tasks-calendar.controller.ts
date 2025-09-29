@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import notionService from "../../services/notion.service";
 import { parseISO } from "date-fns";
 import { calendarQuerySchema } from "../../validators/tasks.validator";
+import { tasksConflictService } from "../../services/tasks-conflict.service";
 
 /**
  * Controller for calendar-related task operations
@@ -52,11 +53,21 @@ export class TasksCalendarController {
         tasks
       });
 
+      // Load conflicts from MongoDB for all tasks
+      const taskIds = resolvedTasks.map((task: any) => task.id);
+      const conflictsMap = await tasksConflictService.getConflictsForTasks(taskIds);
+      
+      // Attach conflicts to tasks
+      const tasksWithConflicts = resolvedTasks.map((task: any) => ({
+        ...task,
+        conflicts: conflictsMap.get(task.id) || undefined
+      }));
+
       // Format response avec les données enrichies
       return res.status(200).json({
         success: true,
         data: {
-          tasks: resolvedTasks,
+          tasks: tasksWithConflicts,
           cacheHit: true, // Calendar service uses cache by default
           period: {
             start: startDate,
@@ -64,7 +75,7 @@ export class TasksCalendarController {
           }
         },
         meta: {
-          count: resolvedTasks.length,
+          count: tasksWithConflicts.length,
           cached: true,
           timestamp: new Date().toISOString()
         }

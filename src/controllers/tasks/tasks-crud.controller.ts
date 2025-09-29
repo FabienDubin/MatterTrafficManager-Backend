@@ -223,6 +223,11 @@ export class TasksCrudController {
           await redisService.invalidatePattern('calendar:*');
         }
 
+        // Save conflicts to MongoDB for persistence
+        if (schedulingConflicts && schedulingConflicts.length > 0) {
+          await tasksConflictService.saveConflicts(createdTask.id, schedulingConflicts);
+        }
+
         // Get sync status for the newly created task
         const syncStatus = await tasksConflictService.getSyncStatus(createdTask.id, 'task');
 
@@ -425,6 +430,14 @@ export class TasksCrudController {
           console.log('[ASYNC CONFLICT CHECK] Found conflicts:', schedulingConflicts);
         }
         
+        // Save conflicts to MongoDB for persistence
+        if (schedulingConflicts && schedulingConflicts.length > 0) {
+          await tasksConflictService.saveConflicts(id, schedulingConflicts);
+        } else {
+          // Clear any existing conflicts if none detected
+          await tasksConflictService.resolveConflictsForTask(id);
+        }
+        
         // Queue the update (après la détection de conflits)
         await syncQueueService.queueTaskUpdate(id, updateData as UpdateTaskInput);
         
@@ -444,6 +457,16 @@ export class TasksCrudController {
         // Record metrics
         latencyMetricsService.recordRedisLatency(queueTime, 'task-update-queue');
         
+        // Save conflicts to MongoDB if any were detected
+        if (schedulingConflicts && schedulingConflicts.length > 0) {
+          await tasksConflictService.saveConflicts(id, schedulingConflicts);
+          console.log(`[ASYNC UPDATE] Saved ${schedulingConflicts.length} conflicts to MongoDB for task ${id}`);
+        } else if (updateData.workPeriod || updateData.assignedMembers) {
+          // If we updated dates/members but no conflicts, clear any existing ones
+          await tasksConflictService.resolveConflictsForTask(id);
+          console.log(`[ASYNC UPDATE] Cleared conflicts for task ${id} (no conflicts detected)`);
+        }
+
         // Invalidate calendar cache if dates changed (APRÈS la détection de conflits)
         if (updateData.workPeriod) {
           await redisService.invalidatePattern('calendar:*');
@@ -586,6 +609,16 @@ export class TasksCrudController {
         // Record metrics
         latencyMetricsService.recordNotionLatency(notionTime, 'task-update-sync');
 
+        // Save conflicts to MongoDB if any were detected
+        if (schedulingConflicts && schedulingConflicts.length > 0) {
+          await tasksConflictService.saveConflicts(id, schedulingConflicts);
+          console.log(`[SYNC UPDATE] Saved ${schedulingConflicts.length} conflicts to MongoDB for task ${id}`);
+        } else if (updateData.workPeriod || updateData.assignedMembers) {
+          // If we updated dates/members but no conflicts, clear any existing ones
+          await tasksConflictService.resolveConflictsForTask(id);
+          console.log(`[SYNC UPDATE] Cleared conflicts for task ${id} (no conflicts detected)`);
+        }
+
         // Update cache
         await redisService.set(
           `task:${id}`,
@@ -670,6 +703,9 @@ export class TasksCrudController {
         
         // Remove from cache immediately for optimistic update
         await redisService.del(`task:${id}`);
+        
+        // Delete conflicts for this task
+        await tasksConflictService.deleteConflictsForTask(id);
         
         // Invalidate calendar cache
         await redisService.invalidatePattern('calendar:*');

@@ -7,6 +7,7 @@ import notionMappingRouter from './notion-mapping.route';
 import notionDiscoveryRouter from './notion-discovery.route';
 import webhookRouter from './webhook.route';
 import tasksRouter from './tasks.route';
+import clientsRouter from './clients.route';
 import cacheRouter from './cache.route';
 import metricsRouter from './metrics.route';
 import conflictsRouter from './conflicts.route';
@@ -30,6 +31,7 @@ router.get('/', (_, res) => {
       auth: '/api/v1/auth',
       notion: '/api/v1/notion',
       tasks: '/api/v1/tasks',
+      clients: '/api/v1/clients',
       sync: '/api/v1/sync',
       config: '/api/v1/config',
       admin: {
@@ -56,6 +58,9 @@ router.use('/notion', notionRouter);
 
 // Tasks routes
 router.use('/tasks', tasksRouter);
+
+// Clients routes
+router.use('/clients', clientsRouter);
 
 // Sync status routes
 router.use('/sync', syncRouter);
