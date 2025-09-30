@@ -47,20 +47,11 @@ export class CalendarService extends NotionBaseService {
             // Filtre optimisé : récupère les tâches dans une fenêtre élargie
             // Puis on affine avec le filtrage JS pour le chevauchement exact
             filter: {
-              and: [
-                {
-                  property: TASK_PROPERTY_IDS.workPeriod,
-                  date: {
-                    on_or_after: searchStartDate.toISOString(),
-                  },
-                },
-                {
-                  property: TASK_PROPERTY_IDS.workPeriod, 
-                  date: {
-                    on_or_before: searchEndDate.toISOString(),
-                  },
-                },
-              ],
+              // Utiliser seulement on_or_after pour capturer les tâches sans date de fin
+              property: TASK_PROPERTY_IDS.workPeriod,
+              date: {
+                on_or_after: searchStartDate.toISOString(),
+              },
             },
             sorts: [
               {
@@ -103,14 +94,11 @@ export class CalendarService extends NotionBaseService {
           }
           
           const taskStart = new Date(task.workPeriod.startDate);
-          // Si pas de date de fin, on utilise la date de début + 1 jour par défaut (tâche journée complète)
+          // Maintenant que le mapper gère les tâches sans endDate, on devrait toujours avoir une endDate
           const taskEnd = task.workPeriod?.endDate 
             ? new Date(task.workPeriod.endDate)
-            : (() => {
-                const endOfDay = new Date(taskStart);
-                endOfDay.setHours(23, 59, 59, 999);
-                return endOfDay;
-              })();
+            : new Date(taskStart); // Fallback au cas où
+            
           const periodStart = new Date(startDate);
           const periodEnd = new Date(endDate);
           

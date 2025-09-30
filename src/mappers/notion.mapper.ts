@@ -125,12 +125,54 @@ export function notionPageToTask(page: any): NotionTask {
   const rawTaskType = extractSelect(props[TASK_PROPERTY_IDS.taskType]);
   const mappedTaskType = mapTaskType(rawTaskType);
 
+  // Gérer les tâches journée entière (avec ou sans date de fin)
+  let startDate = dateRange.start;
+  let endDate = dateRange.end;
+  let isAllDay = false;
+  let shouldSplitDaily = false;
+
+  // Vérifier si les dates n'ont pas d'heures spécifiques (00:00:00 UTC)
+  const hasNoTime = (date: Date | null) => {
+    if (!date) return true;
+    // Utiliser UTC pour vérifier si c'est une tâche all-day (minuit UTC)
+    return date.getUTCHours() === 0 && date.getUTCMinutes() === 0 && date.getUTCSeconds() === 0;
+  };
+
+  const isSpecialType = ['holiday', 'remote', 'school'].includes(mappedTaskType || '');
+
+  // Déterminer si c'est une tâche all-day
+  if (isSpecialType) {
+    // Types spéciaux sont TOUJOURS all-day et doivent être splittés par jour
+    isAllDay = true;
+    shouldSplitDaily = true;
+    // Si pas de date de fin, c'est un jour unique
+    if (!endDate && startDate) {
+      endDate = new Date(startDate);
+    }
+  } else if (hasNoTime(startDate) && hasNoTime(endDate)) {
+    // Tâches normales sans heures sont aussi all-day mais NE sont PAS splittées
+    isAllDay = true;
+    shouldSplitDaily = false;
+    // Si pas de date de fin, on étend sur la journée de travail
+    if (!endDate && startDate) {
+      const newStartDate = new Date(startDate);
+      newStartDate.setHours(7, 0, 0, 0);
+      startDate = newStartDate;
+      
+      endDate = new Date(startDate);
+      endDate.setHours(22, 0, 0, 0);
+    }
+  } else if (!endDate && startDate) {
+    // Tâche d'un seul jour avec heures ou sans type spécial
+    endDate = new Date(startDate);
+  }
+
   const task: NotionTask = {
     id: page.id,
     title: extractTitle(props[TASK_PROPERTY_IDS.title]),
     workPeriod: {
-      startDate: dateRange.start,
-      endDate: dateRange.end,
+      startDate: startDate,
+      endDate: endDate,
     },
     assignedMembers: extractRelationIds(props[TASK_PROPERTY_IDS.assignedMembers]),
     projectId: extractRelationIds(props[TASK_PROPERTY_IDS.projectId])[0] || null,
@@ -144,6 +186,8 @@ export function notionPageToTask(page: any): NotionTask {
     clientPlanning: extractCheckbox(props[TASK_PROPERTY_IDS.clientPlanning]),
     client: extractRichText(props[TASK_PROPERTY_IDS.client]) || null,
     teams: extractRollupRelationIds(props[TASK_PROPERTY_IDS.team]), // Changed to use rollup extractor for teams array
+    isAllDay, // Ajout du flag isAllDay
+    shouldSplitDaily, // Ajout du flag shouldSplitDaily pour différencier les types spéciaux
     createdAt: new Date(page.created_time),
     updatedAt: new Date(page.last_edited_time),
   };
