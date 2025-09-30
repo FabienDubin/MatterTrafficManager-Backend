@@ -1,7 +1,9 @@
 /**
  * @deprecated This controller has been refactored into smaller modules.
  * Please use the specific controllers instead:
- * - tasks-crud.controller.ts for CRUD operations
+ * - task-read.controller.ts for read operations
+ * - task-write.controller.ts for write operations
+ * - task-conflict.controller.ts for conflict detection
  * - tasks-calendar.controller.ts for calendar operations
  * - tasks-batch.controller.ts for batch operations
  * - tasks-stats.controller.ts for statistics
@@ -9,7 +11,10 @@
  * This file will be removed in the next major version.
  */
 
-import { tasksCrudController } from "./tasks/tasks-crud.controller";
+import { taskReadController } from "./tasks/task-read.controller";
+import { taskCreateController } from "./tasks/task-create.controller";
+import { taskUpdateController } from "./tasks/task-update.controller";
+import { taskDeleteController } from "./tasks/task-delete.controller";
 import { tasksCalendarController } from "./tasks/tasks-calendar.controller";
 import { tasksBatchController } from "./tasks/tasks-batch.controller";
 import { tasksStatsController } from "./tasks/tasks-stats.controller";
@@ -22,11 +27,11 @@ export class TasksController {
   // Delegate to tasks-calendar.controller.ts
   getCalendarTasks = tasksCalendarController.getCalendarTasks;
 
-  // Delegate to tasks-crud.controller.ts
-  getTaskById = tasksCrudController.getTaskById;
-  createTask = tasksCrudController.createTask;
-  updateTask = tasksCrudController.updateTask;
-  deleteTask = tasksCrudController.deleteTask;
+  // Delegate to task-read.controller.ts and individual write controllers
+  getTaskById = taskReadController.getTaskById;
+  createTask = taskCreateController.createTask;
+  updateTask = taskUpdateController.updateTask;
+  deleteTask = taskDeleteController.deleteTask;
 
   // Delegate to tasks-batch.controller.ts
   batchUpdateTasks = tasksBatchController.batchUpdateTasks;

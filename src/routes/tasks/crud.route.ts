@@ -1,5 +1,9 @@
 import { Router } from "express";
-import { tasksCrudController } from "../../controllers/tasks/tasks-crud.controller";
+import { taskReadController } from "../../controllers/tasks/task-read.controller";
+import { taskCreateController } from "../../controllers/tasks/task-create.controller";
+import { taskUpdateController } from "../../controllers/tasks/task-update.controller";
+import { taskDeleteController } from "../../controllers/tasks/task-delete.controller";
+import { taskConflictController } from "../../controllers/tasks/task-conflict.controller";
 import { authenticate } from "../../middleware/auth.middleware";
 
 const router = Router();
@@ -58,7 +62,7 @@ const router = Router();
 router.get(
   "/:id",
   authenticate,
-  tasksCrudController.getTaskById
+  taskReadController.getTaskById
 );
 
 /**
@@ -163,7 +167,7 @@ router.get(
 router.post(
   "/",
   authenticate,
-  tasksCrudController.createTask
+  taskCreateController.createTask
 );
 
 /**
@@ -267,7 +271,7 @@ router.post(
 router.put(
   "/:id",
   authenticate,
-  tasksCrudController.updateTask
+  taskUpdateController.updateTask
 );
 
 /**
@@ -321,7 +325,67 @@ router.put(
 router.delete(
   "/:id",
   authenticate,
-  tasksCrudController.deleteTask
+  taskDeleteController.deleteTask
+);
+
+/**
+ * @swagger
+ * /api/v1/tasks/check-conflicts:
+ *   post:
+ *     summary: Check scheduling conflicts for a task
+ *     description: Check if a task has scheduling conflicts with existing tasks
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - workPeriod
+ *               - assignedMembers
+ *             properties:
+ *               workPeriod:
+ *                 type: object
+ *                 required:
+ *                   - startDate
+ *                   - endDate
+ *                 properties:
+ *                   startDate:
+ *                     type: string
+ *                     format: date
+ *                   endDate:
+ *                     type: string
+ *                     format: date
+ *               assignedMembers:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Conflict check completed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 conflicts:
+ *                   type: array
+ *                 meta:
+ *                   type: object
+ *       400:
+ *         description: Invalid request data
+ *       500:
+ *         description: Server error
+ */
+router.post(
+  "/check-conflicts",
+  authenticate,
+  taskConflictController.checkSchedulingConflicts
 );
 
 export { router as tasksCrudRouter };

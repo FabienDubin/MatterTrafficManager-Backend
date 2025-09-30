@@ -192,7 +192,7 @@ router.get("/calendar", tasksController.getCalendarTasks);
  *       500:
  *         description: Failed to fetch statistics
  */
-router.get("/stats/today", tasksController.getTodayStats.bind(tasksController));
+router.get("/stats/today", tasksController.getTodayStats);
 
 /**
  * @swagger
