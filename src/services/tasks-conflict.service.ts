@@ -1,6 +1,7 @@
 import { ConflictLogModel } from "../models/ConflictLog.model";
 import { TaskSchedulingConflictModel } from "../models/TaskSchedulingConflict.model";
 import { redisService } from "./redis.service";
+import notionService from "./notion.service";
 import { NotionTask, NotionMember } from "../types/notion.types";
 import { SchedulingConflict } from "../controllers/tasks/tasks-conflict.controller";
 import { parseISO, differenceInHours, format } from "date-fns";
@@ -422,13 +423,70 @@ export class TasksConflictService {
   }
 
   /**
+   * Enrich conflicts with member names from Notion
+   * Resolves "Unknown Member" by fetching from Notion API in batch
+   */
+  async enrichConflictsWithMemberNames(conflicts: SchedulingConflict[]): Promise<SchedulingConflict[]> {
+    try {
+      // Collecter tous les memberIds uniques qui ont besoin d'être résolus
+      const memberIdsToResolve = [
+        ...new Set(
+          conflicts
+            .filter(c => !c.memberName || c.memberName === 'Unknown Member' || c.memberName === 'Unknown')
+            .map(c => c.memberId)
+        )
+      ];
+
+      // Si aucun membre à résoudre, retourner les conflits tels quels
+      if (memberIdsToResolve.length === 0) {
+        return conflicts;
+      }
+
+      // Résoudre les noms des membres en batch depuis Notion
+      const membersMap = new Map<string, string>();
+      const members = await notionService.batchLoadMembers(memberIdsToResolve);
+      members.forEach((member, index) => {
+        const memberId = memberIdsToResolve[index];
+        if (member && member.name && memberId) {
+          membersMap.set(memberId, member.name);
+        }
+      });
+
+      // Enrichir les memberName
+      const enrichedConflicts = conflicts.map((conflict) => {
+        if (!conflict.memberName || conflict.memberName === 'Unknown Member' || conflict.memberName === 'Unknown') {
+          const resolvedName = membersMap.get(conflict.memberId);
+          if (resolvedName) {
+            return {
+              ...conflict,
+              memberName: resolvedName,
+              message: conflict.message.replace(/Unknown Member/g, resolvedName) // Update message too
+            };
+          }
+        }
+        return conflict;
+      });
+
+      console.log(`[CONFLICT ENRICH] Resolved ${membersMap.size} member names out of ${memberIdsToResolve.length}`);
+      return enrichedConflicts;
+    } catch (error) {
+      console.error('Error enriching conflicts with member names:', error);
+      // Return original conflicts if enrichment fails
+      return conflicts;
+    }
+  }
+
+  /**
    * Save conflicts to MongoDB for persistence
    */
   async saveConflicts(taskId: string, conflicts: SchedulingConflict[]): Promise<void> {
     try {
+      // Enrichir les conflits avant sauvegarde
+      const enrichedConflicts = await this.enrichConflictsWithMemberNames(conflicts);
+
       // Use the bulk save method from the model
-      await TaskSchedulingConflictModel.bulkSaveConflicts(taskId, conflicts);
-      console.log(`[CONFLICT PERSIST] Saved ${conflicts.length} conflicts for task ${taskId}`);
+      await TaskSchedulingConflictModel.bulkSaveConflicts(taskId, enrichedConflicts);
+      console.log(`[CONFLICT PERSIST] Saved ${enrichedConflicts.length} conflicts for task ${taskId}`);
     } catch (error) {
       console.error(`Error saving conflicts for task ${taskId}:`, error);
       // Don't throw - conflict saving is not critical

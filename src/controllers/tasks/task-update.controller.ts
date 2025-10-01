@@ -77,25 +77,30 @@ export class TaskUpdateController {
       if (useAsync) {
         // ASYNC MODE: Queue for background sync with conflict detection
         const startTime = Date.now();
-        
+
         // DÉTECTION DE CONFLITS (même en mode async)
         const currentTask = await redisService.get(`task:${id}`);
-        const { conflicts: schedulingConflicts, method: conflictDetectionMethod } = await conflictDetectionService.detectUpdateConflictsAsync(id, updateData, currentTask);
-        
-        // Save conflicts to MongoDB for persistence
+        const { conflicts: detectedConflicts, method: conflictDetectionMethod } = await conflictDetectionService.detectUpdateConflictsAsync(id, updateData, currentTask);
+
+        // Enrichir les conflits avec les noms des membres depuis Notion
+        const schedulingConflicts = await tasksConflictService.enrichConflictsWithMemberNames(detectedConflicts);
+
+        // Save enriched conflicts to MongoDB for persistence
         if (schedulingConflicts && schedulingConflicts.length > 0) {
           await tasksConflictService.saveConflicts(id, schedulingConflicts);
+          console.log(`[ASYNC UPDATE] Saved ${schedulingConflicts.length} conflicts to MongoDB for task ${id}`);
         } else {
           // Clear any existing conflicts if none detected
           await tasksConflictService.resolveConflictsForTask(id);
+          console.log(`[ASYNC UPDATE] Cleared conflicts for task ${id} (no conflicts detected)`);
         }
-        
+
         // Queue the update (après la détection de conflits)
         await syncQueueService.queueTaskUpdate(id, updateData as UpdateTaskInput);
-        
+
         // Get cached version for optimistic response
         const cachedTask = await redisService.get(`task:${id}`) || {};
-        
+
         const optimisticTask = {
           ...cachedTask,
           ...updateData,
@@ -103,21 +108,11 @@ export class TaskUpdateController {
           _pendingSync: true,
           updatedAt: new Date().toISOString()
         };
-        
+
         const queueTime = Date.now() - startTime;
-        
+
         // Record metrics
         latencyMetricsService.recordRedisLatency(queueTime, 'task-update-queue');
-        
-        // Save conflicts to MongoDB if any were detected
-        if (schedulingConflicts && schedulingConflicts.length > 0) {
-          await tasksConflictService.saveConflicts(id, schedulingConflicts);
-          console.log(`[ASYNC UPDATE] Saved ${schedulingConflicts.length} conflicts to MongoDB for task ${id}`);
-        } else if (updateData.workPeriod || updateData.assignedMembers) {
-          // If we updated dates/members but no conflicts, clear any existing ones
-          await tasksConflictService.resolveConflictsForTask(id);
-          console.log(`[ASYNC UPDATE] Cleared conflicts for task ${id} (no conflicts detected)`);
-        }
 
         // Invalidate calendar cache if dates changed (APRÈS la détection de conflits)
         if (updateData.workPeriod) {
@@ -154,17 +149,20 @@ export class TaskUpdateController {
         
         // IMPORTANT: Check conflicts BEFORE any cache invalidation!
         const currentTask = await redisService.get(`task:${id}`);
-        const schedulingConflicts = await conflictDetectionService.detectUpdateConflictsSync(id, updateData, currentTask);
-        
+        const detectedConflicts = await conflictDetectionService.detectUpdateConflictsSync(id, updateData, currentTask);
+
+        // Enrichir les conflits avec les noms des membres depuis Notion
+        const schedulingConflicts = await tasksConflictService.enrichConflictsWithMemberNames(detectedConflicts);
+
         // Now perform the actual update
         const updatedTask = await notionService.updateTask(id, updateData as UpdateTaskInput);
-        
+
         const notionTime = Date.now() - startTime;
-        
+
         // Record metrics
         latencyMetricsService.recordNotionLatency(notionTime, 'task-update-sync');
 
-        // Save conflicts to MongoDB if any were detected
+        // Save enriched conflicts to MongoDB if any were detected
         if (schedulingConflicts && schedulingConflicts.length > 0) {
           await tasksConflictService.saveConflicts(id, schedulingConflicts);
           console.log(`[SYNC UPDATE] Saved ${schedulingConflicts.length} conflicts to MongoDB for task ${id}`);
