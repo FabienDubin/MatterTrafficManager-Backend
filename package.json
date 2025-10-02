@@ -28,6 +28,7 @@
     "webhook:capture": "ts-node src/scripts/azure-webhook-capture.ts",
     "webhook:capture:local": "ts-node src/scripts/capture-webhook-token.ts",
     "import:colors": "ts-node src/scripts/import-client-colors.ts",
+    "import:configs": "ts-node src/scripts/init-all-configs.ts",
     "docker:rebuild:backend": "npm run build && docker-compose build backend && docker-compose up -d backend",
     "docker:rebuild:frontend": "cd ../matter-traffic-frontend && npm run build && cd ../matter-traffic-backend && docker-compose build frontend && docker-compose up -d frontend",
     "docker:rebuild:all": "npm run docker:rebuild:backend && npm run docker:rebuild:frontend"
