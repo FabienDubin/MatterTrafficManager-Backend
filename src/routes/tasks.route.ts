@@ -196,6 +196,72 @@ router.get("/stats/today", tasksController.getTodayStats);
 
 /**
  * @swagger
+ * /api/v1/tasks/unplanned:
+ *   get:
+ *     summary: Get unplanned tasks
+ *     description: Retrieve all tasks without a start date (for drag & drop planning)
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Unplanned tasks retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     tasks:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     count:
+ *                       type: number
+ *                       example: 12
+ *       500:
+ *         description: Failed to fetch unplanned tasks
+ */
+router.get("/unplanned", tasksController.getUnplannedTasks);
+
+/**
+ * @swagger
+ * /api/v1/tasks/unplanned/count:
+ *   get:
+ *     summary: Get unplanned tasks count (for dashboard)
+ *     description: Get count of tasks without start date
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Count retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     count:
+ *                       type: number
+ *                       example: 12
+ *       500:
+ *         description: Failed to fetch count
+ */
+router.get("/unplanned/count", tasksController.getUnplannedCount);
+
+/**
+ * @swagger
  * /api/v1/tasks/{id}:
  *   get:
  *     summary: Get a single task by ID

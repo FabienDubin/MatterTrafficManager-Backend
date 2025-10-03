@@ -107,4 +107,55 @@ router.put('/', authenticate, requireAdmin, configController.updateConfigs);
  */
 router.post('/init', authenticate, requireAdmin, configController.initDefaults);
 
+/**
+ * @swagger
+ * /api/v1/config/teams-display:
+ *   get:
+ *     summary: Get teams display configuration
+ *     description: Retrieve configured teams for display in filter panel with icons and colors
+ *     tags: [Config]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Teams display configuration retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     teams:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             description: Notion team ID
+ *                             example: "notion-team-123"
+ *                           name:
+ *                             type: string
+ *                             description: Team name from Notion
+ *                             example: "Dev Team"
+ *                           icon:
+ *                             type: string
+ *                             description: Lucide icon name
+ *                             example: "Users"
+ *                           color:
+ *                             type: string
+ *                             description: Hex color code
+ *                             example: "#3B82F6"
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/teams-display', authenticate, configController.getTeamsDisplayConfig);
+
 export default router;

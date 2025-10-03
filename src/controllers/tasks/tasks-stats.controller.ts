@@ -59,6 +59,76 @@ export class TasksStatsController {
       });
     }
   }
+
+  /**
+   * Get count of unplanned tasks (tasks without startDate) - for dashboard stats
+   * GET /api/v1/tasks/unplanned/count
+   */
+  async getUnplannedCount(_req: Request, res: Response) {
+    try {
+      // Import required services
+      const { cacheManagerService } = await import('../../services/notion/cache-manager.service');
+      const { notion, DATABASES } = await import('../../config/notion.config');
+      const { retryWithBackoff } = await import('../../utils/retryWithBackoff');
+
+      const cacheKey = 'tasks:unplanned:count';
+
+      const count = await cacheManagerService.getCachedOrFetch(
+        cacheKey,
+        'tasks',
+        async () => {
+          // Query Notion database for tasks without workPeriod
+          let totalCount = 0;
+          let hasMore = true;
+          let startCursor: string | undefined = undefined;
+
+          while (hasMore) {
+            const queryParams: any = {
+              database_id: DATABASES.traffic,
+              filter: {
+                property: 'Période de travail',
+                date: {
+                  is_empty: true
+                }
+              },
+              page_size: 100
+            };
+
+            if (startCursor) {
+              queryParams.start_cursor = startCursor;
+            }
+
+            const response = await retryWithBackoff(() =>
+              notion.databases.query(queryParams)
+            );
+
+            totalCount += response.results.length;
+            hasMore = response.has_more;
+            startCursor = response.next_cursor || undefined;
+          }
+
+          return totalCount;
+        }
+      );
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          count
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          cached: true
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching unplanned tasks count:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch unplanned tasks count'
+      });
+    }
+  }
 }
 
 export const tasksStatsController = new TasksStatsController();

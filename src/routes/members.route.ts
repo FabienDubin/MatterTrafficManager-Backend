@@ -9,11 +9,18 @@ const router = Router();
  * /api/v1/members:
  *   get:
  *     summary: Get all members
- *     description: Retrieve all members from Notion database
+ *     description: Retrieve all members from Notion database, optionally filtered by teams
  *     tags:
  *       - Members
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: teams
+ *         schema:
+ *           type: string
+ *         description: Comma-separated list of team IDs to filter members (e.g., team1,team2)
+ *         example: "team-dev,team-design"
  *     responses:
  *       200:
  *         description: List of members retrieved successfully

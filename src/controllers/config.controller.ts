@@ -154,9 +154,9 @@ export class ConfigController {
   async initDefaults(req: Request, res: Response) {
     try {
       await ConfigModel.initDefaults();
-      
+
       logger.info('Default configs initialized');
-      
+
       return res.status(200).json({
         success: true,
         message: 'Default configurations initialized',
@@ -164,13 +164,82 @@ export class ConfigController {
           timestamp: new Date().toISOString()
         }
       });
-      
+
     } catch (error) {
       logger.error('Error initializing configs:', error);
-      
+
       return res.status(500).json({
         success: false,
         error: 'Failed to initialize configurations'
+      });
+    }
+  }
+
+  /**
+   * Get teams display configuration with full team details from Notion
+   * GET /api/v1/config/teams-display
+   */
+  async getTeamsDisplayConfig(req: Request, res: Response) {
+    try {
+      // Import entityService dynamically to avoid circular dependencies
+      const { entityService } = await import('../services/notion/entity.service');
+
+      // Get config from MongoDB
+      const config = await ConfigModel.getValue('TEAMS_DISPLAY_CONFIG');
+
+      if (!config) {
+        logger.warn('TEAMS_DISPLAY_CONFIG not found, returning empty config');
+        return res.status(200).json({
+          success: true,
+          data: {
+            teams: []
+          }
+        });
+      }
+
+      const { selectedTeamIds = [], teamIcons = {}, teamColors = {} } = config;
+
+      // If no teams selected, return empty array
+      if (selectedTeamIds.length === 0) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            teams: []
+          }
+        });
+      }
+
+      // Fetch all teams from Notion
+      const allTeams = await entityService.getAllTeams();
+
+      // Filter teams based on selectedTeamIds and enrich with icons/colors
+      const teams = allTeams
+        .filter((team: any) => selectedTeamIds.includes(team.id))
+        .map((team: any) => ({
+          id: team.id,
+          name: team.name,
+          icon: teamIcons[team.id] || 'Users', // Default icon if not configured
+          color: teamColors[team.id] || '#6B7280' // Default gray if not configured
+        }));
+
+      logger.info(`Retrieved ${teams.length} teams for display config`);
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          teams
+        },
+        meta: {
+          timestamp: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error fetching teams display config:', error);
+
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch teams display configuration'
       });
     }
   }

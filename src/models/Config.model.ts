@@ -347,6 +347,23 @@ ConfigSchema.statics.initDefaults = async function(): Promise<void> {
       defaultValue: {},
       isEditable: true,
     },
+    {
+      key: 'TEAMS_DISPLAY_CONFIG',
+      value: {
+        selectedTeamIds: [],
+        teamIcons: {},
+        teamColors: {}
+      },
+      description: 'Configuration des équipes affichées dans le filtre du panneau latéral (3 max)',
+      category: 'calendar',
+      dataType: 'json',
+      defaultValue: {
+        selectedTeamIds: [],
+        teamIcons: {},
+        teamColors: {}
+      },
+      isEditable: true,
+    },
   ];
   
   for (const config of defaultConfigs) {

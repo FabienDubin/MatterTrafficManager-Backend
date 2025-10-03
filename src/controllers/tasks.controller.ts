@@ -29,6 +29,7 @@ export class TasksController {
 
   // Delegate to task-read.controller.ts and individual write controllers
   getTaskById = taskReadController.getTaskById;
+  getUnplannedTasks = taskReadController.getUnplannedTasks;
   createTask = taskCreateController.createTask;
   updateTask = taskUpdateController.updateTask;
   deleteTask = taskDeleteController.deleteTask;
@@ -38,6 +39,7 @@ export class TasksController {
 
   // Delegate to tasks-stats.controller.ts
   getTodayStats = tasksStatsController.getTodayStats;
+  getUnplannedCount = tasksStatsController.getUnplannedCount;
 }
 
 export const tasksController = new TasksController();
