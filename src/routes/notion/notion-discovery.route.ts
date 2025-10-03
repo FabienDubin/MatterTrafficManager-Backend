@@ -3,8 +3,8 @@ import {
   runFullDiscovery,
   validateRelationships,
   getDiscoveredSchemas
-} from '../controllers/notion-discovery.controller';
-import { authenticate, requireAdmin } from '../middleware/auth.middleware';
+} from '../../controllers/notion-discovery.controller';
+import { authenticate, requireAdmin } from '../../middleware/auth.middleware';
 
 const router = Router();
 

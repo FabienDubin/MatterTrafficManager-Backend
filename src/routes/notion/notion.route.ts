@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import notionController from '../controllers/notion.controller';
-import { authenticate } from '../middleware/auth.middleware';
+import notionController from '../../controllers/notion.controller';
+import { authenticate } from '../../middleware/auth.middleware';
 
 const router = Router();
 

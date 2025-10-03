@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import syncController from '../controllers/sync.controller';
-import { authenticate } from '../middleware/auth.middleware';
-import { requireAdmin } from '../middleware/auth.middleware';
+import syncController from '../../controllers/sync.controller';
+import { authenticate } from '../../middleware/auth.middleware';
+import { requireAdmin } from '../../middleware/auth.middleware';
 
 const router = Router();
 

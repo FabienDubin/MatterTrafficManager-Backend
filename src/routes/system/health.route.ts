@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { HealthController } from '../controllers/health.controller';
-import { authenticate, requireAdmin } from '../middleware/auth.middleware';
+import { HealthController } from '../../controllers/health.controller';
+import { authenticate, requireAdmin } from '../../middleware/auth.middleware';
 
 const router = Router();
 const healthController = new HealthController();

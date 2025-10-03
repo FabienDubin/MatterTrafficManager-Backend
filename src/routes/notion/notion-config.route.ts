@@ -3,8 +3,8 @@ import {
   getNotionConfig,
   saveNotionConfig,
   testNotionConnection
-} from '../controllers/notion-config.controller';
-import { authenticate, requireAdmin } from '../middleware/auth.middleware';
+} from '../../controllers/notion-config.controller';
+import { authenticate, requireAdmin } from '../../middleware/auth.middleware';
 // Rate limiter removed - test endpoint doesn't need rate limiting for admin
 
 const router = Router();

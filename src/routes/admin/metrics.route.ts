@@ -4,9 +4,9 @@
  */
 
 import { Router } from "express";
-import { metricsController } from "../controllers/metrics.controller";
-import { cacheController } from "../controllers/cache.controller";
-import { authenticate, requireAdmin } from "../middleware/auth.middleware";
+import { metricsController } from "../../controllers/metrics.controller";
+import { cacheController } from "../../controllers/cache.controller";
+import { authenticate, requireAdmin } from "../../middleware/auth.middleware";
 
 const router = Router();
 

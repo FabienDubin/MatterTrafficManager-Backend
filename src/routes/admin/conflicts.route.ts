@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { ConflictsController } from '../controllers/conflicts.controller';
-import { authenticate } from '../middleware/auth.middleware';
-import { requireAdmin } from '../middleware/auth.middleware';
+import { ConflictsController } from '../../controllers/conflicts.controller';
+import { authenticate } from '../../middleware/auth.middleware';
+import { requireAdmin } from '../../middleware/auth.middleware';
 
 const router = Router();
 const conflictsController = new ConflictsController();

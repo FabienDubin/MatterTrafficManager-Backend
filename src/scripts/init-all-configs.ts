@@ -131,6 +131,19 @@ const ALL_CONFIGS = [
   },
   // Calendar configs (NEW)
   {
+    key: 'TEAMS_DISPLAY_CONFIG',
+    value: {
+      teams: []
+    },
+    description: 'Configuration des équipes affichées dans le filtre du panneau latéral (4 max) - Format: [{ id, icon, color, order }]',
+    category: 'calendar',
+    dataType: 'json',
+    defaultValue: {
+      teams: []
+    },
+    isEditable: true,
+  },
+  {
     key: 'CALENDAR_DAY_VIEW_FIELDS',
     value: ['title', 'project', 'client'],
     description: 'Champs à afficher dans la vue jour',

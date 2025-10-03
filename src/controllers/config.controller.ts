@@ -186,6 +186,7 @@ export class ConfigController {
 
       // Get config from MongoDB
       const config = await ConfigModel.getValue('TEAMS_DISPLAY_CONFIG');
+      logger.info(`[getTeamsDisplayConfig] Retrieved config from DB:`, config ? JSON.stringify(config, null, 2) : 'null');
 
       if (!config) {
         logger.warn('TEAMS_DISPLAY_CONFIG not found, returning empty config');
@@ -278,6 +279,8 @@ export class ConfigController {
     try {
       const { teams } = req.body;
 
+      logger.info(`[updateTeamsDisplayConfig] Received request with ${teams?.length || 0} teams:`, teams);
+
       // Validation
       if (!Array.isArray(teams)) {
         return res.status(400).json({
@@ -306,7 +309,13 @@ export class ConfigController {
 
       // Update config
       const userId = (req as any).userId;
-      await ConfigModel.setValue('TEAMS_DISPLAY_CONFIG', { teams }, userId);
+      logger.info(`[updateTeamsDisplayConfig] Updating config for userId: ${userId || 'unknown'}`);
+
+      const valueToSave = { teams };
+      logger.info(`[updateTeamsDisplayConfig] Saving value:`, JSON.stringify(valueToSave, null, 2));
+
+      const savedConfig = await ConfigModel.setValue('TEAMS_DISPLAY_CONFIG', valueToSave, userId);
+      logger.info(`[updateTeamsDisplayConfig] Config saved successfully:`, savedConfig ? JSON.stringify(savedConfig.value, null, 2) : 'null');
 
       logger.info(`Updated teams display config with ${teams.length} teams by user ${userId || 'unknown'}`);
 

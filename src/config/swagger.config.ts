@@ -23,7 +23,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: process.env.API_BASE_URL || 'http://localhost:3000/api/v1',
+        url: process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 5005}/api/v1`,
         description: 'Development server',
       },
     ],
@@ -43,8 +43,8 @@ const swaggerOptions = {
     ],
   },
   apis: [
-    './src/routes/*.ts',
-    './src/controllers/*.ts',
+    './src/routes/**/*.ts',
+    './src/controllers/**/*.ts',
     './src/validators/*.ts',
   ],
 };
@@ -68,11 +68,11 @@ export const setupSwagger = (app: Express): void => {
       },
     }));
 
-    console.log(`📚 Swagger documentation available at: http://localhost:${process.env.PORT || 3000}/api-docs`);
+    console.log(`📚 Swagger documentation available at: http://localhost:${process.env.PORT || 5005}/api-docs`);
   }
 
   // OpenAPI spec export endpoint
-  app.get('/api/v1/docs/openapi.json', (req, res) => {
+  app.get('/api/v1/docs/openapi.json', (_, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.send(specs);
   });

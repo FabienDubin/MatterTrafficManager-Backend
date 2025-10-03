@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { authenticate, requireAdmin } from '../middleware/auth.middleware';
-import { cacheController } from '../controllers/cache.controller';
+import { authenticate, requireAdmin } from '../../middleware/auth.middleware';
+import { cacheController } from '../../controllers/cache.controller';
 
 const router = Router();
 

@@ -1,20 +1,10 @@
 import { Router } from 'express';
-import healthRouter from './health.route';
-import authRouter from './auth.route';
-import notionRouter from './notion.route';
-import notionConfigRouter from './notion-config.route';
-import notionMappingRouter from './notion-mapping.route';
-import notionDiscoveryRouter from './notion-discovery.route';
-import webhookRouter from './webhook.route';
-import tasksRouter from './tasks.route';
-import clientsRouter from './clients.route';
-import membersRouter from './members.route';
-import projectsRouter from './projects.route';
-import cacheRouter from './cache.route';
-import metricsRouter from './metrics.route';
-import conflictsRouter from './conflicts.route';
-import syncRouter from './sync.route';
-import configRouter from './config.route';
+import authRouter from './auth/index.route';
+import systemRouter from './system/index.route';
+import notionRouter from './notion/index.route';
+import { tasksRouter } from './tasks/index.route';
+import entitiesRouter from './entities/index.route';
+import adminRouter from './admin/index.route';
 
 const router = Router();
 
@@ -36,6 +26,7 @@ router.get('/', (_, res) => {
       clients: '/api/v1/clients',
       members: '/api/v1/members',
       projects: '/api/v1/projects',
+      teams: '/api/v1/teams',
       sync: '/api/v1/sync',
       config: '/api/v1/config',
       admin: {
@@ -51,52 +42,22 @@ router.get('/', (_, res) => {
   });
 });
 
-// Health check routes
-router.use('/health', healthRouter);
+// System routes (health, webhooks)
+router.use('/', systemRouter);
 
 // Authentication routes
 router.use('/auth', authRouter);
 
-// Notion API routes
-router.use('/notion', notionRouter);
+// Notion integration routes
+router.use('/', notionRouter);
 
 // Tasks routes
 router.use('/tasks', tasksRouter);
 
-// Clients routes
-router.use('/clients', clientsRouter);
+// Entity routes (clients, members, projects, teams)
+router.use('/', entitiesRouter);
 
-// Members routes
-router.use('/members', membersRouter);
-
-// Projects routes
-router.use('/projects', projectsRouter);
-
-// Sync status routes
-router.use('/sync', syncRouter);
-
-// Config management routes
-router.use('/config', configRouter);
-
-// Admin routes - Notion configuration
-router.use('/admin/notion-config', notionConfigRouter);
-
-// Admin routes - Notion mapping
-router.use('/admin/notion-mapping', notionMappingRouter);
-
-// Admin routes - Notion discovery
-router.use('/admin/notion-discovery', notionDiscoveryRouter);
-
-// Admin routes - Cache management
-router.use('/admin/cache', cacheRouter);
-
-// Admin routes - Metrics
-router.use('/admin/metrics', metricsRouter);
-
-// Admin routes - Conflicts management
-router.use('/admin/conflicts', conflictsRouter);
-
-// Webhook routes (no auth middleware here - handled internally)
-router.use('/', webhookRouter);
+// Admin routes (cache, metrics, conflicts, sync, config)
+router.use('/', adminRouter);
 
 export default router;

@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { authController } from '../controllers/auth.controller';
-import { validate } from '../middleware/validation.middleware';
-import { authenticate, requireAdmin } from '../middleware/auth.middleware';
-import { authRateLimiter } from '../middleware/rate-limit.middleware';
+import { authController } from '../../controllers/auth.controller';
+import { validate } from '../../middleware/validation.middleware';
+import { authenticate, requireAdmin } from '../../middleware/auth.middleware';
+import { authRateLimiter } from '../../middleware/rate-limit.middleware';
 import { 
   loginSchema, 
   refreshTokenSchema, 
@@ -10,7 +10,7 @@ import {
   createUserSchema,
   updateUserSchema,
   resetPasswordSchema
-} from '../validators/auth.validator';
+} from '../../validators/auth.validator';
 
 /**
  * Authentication routes

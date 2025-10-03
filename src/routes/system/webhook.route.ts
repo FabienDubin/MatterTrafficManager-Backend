@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { WebhookController } from '../controllers/webhook.controller';
-import { webhookAuthMiddleware } from '../middleware/webhookAuth.middleware';
-import { authenticate } from '../middleware/auth.middleware';
-import { requireAdmin } from '../middleware/auth.middleware';
+import { WebhookController } from '../../controllers/webhook.controller';
+import { webhookAuthMiddleware } from '../../middleware/webhookAuth.middleware';
+import { authenticate } from '../../middleware/auth.middleware';
+import { requireAdmin } from '../../middleware/auth.middleware';
 
 const router = Router();
 const webhookController = new WebhookController();
