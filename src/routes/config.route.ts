@@ -158,4 +158,44 @@ router.post('/init', authenticate, requireAdmin, configController.initDefaults);
  */
 router.get('/teams-display', authenticate, configController.getTeamsDisplayConfig);
 
+/**
+ * @swagger
+ * /api/v1/config/teams-display:
+ *   put:
+ *     summary: Update teams display configuration
+ *     tags: [Config]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               teams:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     icon:
+ *                       type: string
+ *                     color:
+ *                       type: string
+ *                     order:
+ *                       type: number
+ *     responses:
+ *       200:
+ *         description: Teams display configuration updated successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.put('/teams-display', authenticate, configController.updateTeamsDisplayConfig);
+
 export default router;

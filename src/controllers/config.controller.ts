@@ -197,30 +197,56 @@ export class ConfigController {
         });
       }
 
-      const { selectedTeamIds = [], teamIcons = {}, teamColors = {} } = config;
+      // Support new format (teams array) and legacy format (selectedTeamIds)
+      let teams = [];
 
-      // If no teams selected, return empty array
-      if (selectedTeamIds.length === 0) {
-        return res.status(200).json({
-          success: true,
-          data: {
-            teams: []
-          }
-        });
+      if (config.teams && Array.isArray(config.teams)) {
+        // NEW FORMAT: teams array with embedded config
+        if (config.teams.length === 0) {
+          return res.status(200).json({
+            success: true,
+            data: { teams: [] }
+          });
+        }
+
+        // Fetch all teams from Notion to enrich with names
+        const allTeams = await entityService.getAllTeams();
+
+        teams = config.teams
+          .map((teamConfig: any) => {
+            const notionTeam = allTeams.find((t: any) => t.id === teamConfig.id);
+            return {
+              id: teamConfig.id,
+              name: notionTeam?.name || 'Unknown Team',
+              icon: teamConfig.icon || 'Users',
+              color: teamConfig.color || '#6B7280',
+              order: teamConfig.order ?? 0
+            };
+          })
+          .sort((a: any, b: any) => a.order - b.order);
+      } else {
+        // LEGACY FORMAT: selectedTeamIds + teamIcons + teamColors
+        const { selectedTeamIds = [], teamIcons = {}, teamColors = {} } = config;
+
+        if (selectedTeamIds.length === 0) {
+          return res.status(200).json({
+            success: true,
+            data: { teams: [] }
+          });
+        }
+
+        const allTeams = await entityService.getAllTeams();
+
+        teams = allTeams
+          .filter((team: any) => selectedTeamIds.includes(team.id))
+          .map((team: any) => ({
+            id: team.id,
+            name: team.name,
+            icon: teamIcons[team.id] || 'Users',
+            color: teamColors[team.id] || '#6B7280',
+            order: 0
+          }));
       }
-
-      // Fetch all teams from Notion
-      const allTeams = await entityService.getAllTeams();
-
-      // Filter teams based on selectedTeamIds and enrich with icons/colors
-      const teams = allTeams
-        .filter((team: any) => selectedTeamIds.includes(team.id))
-        .map((team: any) => ({
-          id: team.id,
-          name: team.name,
-          icon: teamIcons[team.id] || 'Users', // Default icon if not configured
-          color: teamColors[team.id] || '#6B7280' // Default gray if not configured
-        }));
 
       logger.info(`Retrieved ${teams.length} teams for display config`);
 
@@ -240,6 +266,66 @@ export class ConfigController {
       return res.status(500).json({
         success: false,
         error: 'Failed to fetch teams display configuration'
+      });
+    }
+  }
+
+  /**
+   * Update teams display configuration
+   * PUT /api/v1/config/teams-display
+   */
+  async updateTeamsDisplayConfig(req: Request, res: Response) {
+    try {
+      const { teams } = req.body;
+
+      // Validation
+      if (!Array.isArray(teams)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Teams must be an array'
+        });
+      }
+
+      // Max 4 teams
+      if (teams.length > 4) {
+        return res.status(400).json({
+          success: false,
+          error: 'Maximum 4 teams allowed'
+        });
+      }
+
+      // Validate each team config
+      for (const team of teams) {
+        if (!team.id || !team.icon || !team.color || typeof team.order !== 'number') {
+          return res.status(400).json({
+            success: false,
+            error: 'Each team must have id, icon, color, and order fields'
+          });
+        }
+      }
+
+      // Update config
+      const userId = (req as any).userId;
+      await ConfigModel.setValue('TEAMS_DISPLAY_CONFIG', { teams }, userId);
+
+      logger.info(`Updated teams display config with ${teams.length} teams by user ${userId || 'unknown'}`);
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          teams
+        },
+        meta: {
+          timestamp: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error updating teams display config:', error);
+
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to update teams display configuration'
       });
     }
   }
