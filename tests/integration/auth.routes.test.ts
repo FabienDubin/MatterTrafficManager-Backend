@@ -46,7 +46,7 @@ jest.mock('../../src/config/logger.config', () => ({
 }));
 
 // Import the router after setting up mocks
-import authRouter from '../../src/routes/auth.route';
+import authRouter from '../../src/routes/auth/index.route';
 
 describe('Auth Routes Integration Tests', () => {
   let app: express.Application;

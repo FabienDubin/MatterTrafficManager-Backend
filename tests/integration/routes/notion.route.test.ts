@@ -1,6 +1,6 @@
 import request from 'supertest';
 import express from 'express';
-import notionRouter from '../../../src/routes/notion.route';
+import notionIndexRouter from '../../../src/routes/notion/index.route';
 import notionService from '../../../src/services/notion.service';
 import { authService } from '../../../src/services/auth.service';
 import { NotionAPIError } from '../../../src/errors/NotionAPIError';
@@ -25,7 +25,8 @@ describe('Notion Routes Integration Tests', () => {
   beforeEach(() => {
     app = express();
     app.use(express.json());
-    app.use('/api/v1/notion', notionRouter);
+    // Le router notion/index.route.ts monte déjà les routes sur /notion
+    app.use('/api/v1', notionIndexRouter);
 
     validToken = 'Bearer valid-jwt-token';
 
