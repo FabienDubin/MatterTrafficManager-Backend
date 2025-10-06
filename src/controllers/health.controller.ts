@@ -12,23 +12,42 @@ export class HealthController {
    */
   check = async (_req: Request, res: Response): Promise<void> => {
     try {
+      const mongoStatus = await this.checkMongoDB();
+      const redisStatus = await this.checkRedis();
+      const webhookStatus = await this.checkWebhooks();
+
+      // Critical services: MongoDB and Redis must be healthy
+      const criticalServicesHealthy =
+        mongoStatus.status === 'healthy' &&
+        redisStatus.status === 'healthy';
+
+      // Webhooks are non-critical: stale/waiting is acceptable (polling fallback exists)
+      const webhooksAcceptable = ['healthy', 'waiting', 'stale'].includes(webhookStatus.status);
+
+      const overallStatus = criticalServicesHealthy && webhooksAcceptable ? 'healthy' : 'degraded';
+      const httpStatus = criticalServicesHealthy ? 200 : 503;
+
       const checks = {
-        status: 'healthy',
+        status: overallStatus,
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         version: packageJson.version || '1.0.0',
         services: {
-          mongodb: await this.checkMongoDB(),
-          redis: await this.checkRedis(),
-          webhooks: await this.checkWebhooks(),
+          mongodb: mongoStatus,
+          redis: redisStatus,
+          webhooks: {
+            ...webhookStatus,
+            critical: false, // Webhooks are optional, polling fallback available
+          },
         },
+        message: !criticalServicesHealthy
+          ? 'Critical services unavailable'
+          : !webhooksAcceptable
+          ? 'Webhook system has issues but polling is active'
+          : 'All systems operational',
       };
 
-      const allHealthy = Object.values(checks.services).every(
-        service => service.status === 'healthy'
-      );
-
-      res.status(allHealthy ? 200 : 503).json(checks);
+      res.status(httpStatus).json(checks);
     } catch (error) {
       res.status(503).json({
         status: 'error',
@@ -147,31 +166,6 @@ export class HealthController {
     }
   };
 
-  private getHealthStatus(hitRate: number, memoryWarning: string): string {
-    if (memoryWarning === 'critical' || hitRate < 50) return 'critical';
-    if (memoryWarning === 'warning' || hitRate < 70) return 'warning';
-    return 'healthy';
-  }
-
-  private generateAlerts(metrics: any, memoryEstimate: any): string[] {
-    const alerts: string[] = [];
-    
-    if (metrics.overall.hitRate < 50) {
-      alerts.push(`Low cache hit rate: ${metrics.overall.hitRate.toFixed(1)}%`);
-    }
-    
-    if (memoryEstimate.warningLevel === 'critical') {
-      alerts.push(`Critical memory usage: ${memoryEstimate.estimatedSizeMB}MB`);
-    } else if (memoryEstimate.warningLevel === 'warning') {
-      alerts.push(`High memory usage: ${memoryEstimate.estimatedSizeMB}MB`);
-    }
-    
-    if (metrics.performance.p95ResponseTimeMs > 100) {
-      alerts.push(`Slow response times: P95 = ${metrics.performance.p95ResponseTimeMs}ms`);
-    }
-    
-    return alerts;
-  }
 
   /**
    * Get Redis memory usage details
