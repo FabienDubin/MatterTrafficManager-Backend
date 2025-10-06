@@ -26,16 +26,16 @@ describe('Health Integration Tests', () => {
       expect([200, 503]).toContain(response.status);
 
       expect(response.body).toMatchObject({
-        status: expect.stringMatching(/healthy|unhealthy|error/),
+        status: expect.stringMatching(/healthy|unhealthy|degraded|error/),
         timestamp: expect.any(String),
         uptime: expect.any(Number),
         services: expect.objectContaining({
           // Au moins MongoDB et webhooks doivent être présents
-          mongodb: expect.objectContaining({ 
-            status: expect.stringMatching(/healthy|unhealthy/) 
+          mongodb: expect.objectContaining({
+            status: expect.stringMatching(/healthy|unhealthy/)
           }),
-          webhooks: expect.objectContaining({ 
-            status: expect.stringMatching(/healthy|waiting|stale|error/) 
+          webhooks: expect.objectContaining({
+            status: expect.stringMatching(/healthy|waiting|stale|error/)
           })
           // Redis est optionnel dans les tests
         })
