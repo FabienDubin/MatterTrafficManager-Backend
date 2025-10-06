@@ -8,10 +8,10 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 async function clearRedisCache() {
   console.log('\n🧹 CLEARING REDIS CACHE\n');
   console.log('=====================================\n');
-  
+
   const redis = new Redis({
     url: process.env.UPSTASH_REDIS_REST_URL || '',
-    token: process.env.UPSTASH_REDIS_REST_TOKEN || ''
+    token: process.env.UPSTASH_REDIS_REST_TOKEN || '',
   });
 
   try {
@@ -22,7 +22,7 @@ async function clearRedisCache() {
   } catch (error) {
     console.error('❌ Error clearing cache:', error);
   }
-  
+
   process.exit(0);
 }
 

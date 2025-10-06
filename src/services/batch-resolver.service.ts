@@ -390,38 +390,72 @@ export class BatchResolverService {
     // Résoudre les relations et extraire les équipes impliquées
     const resolvedTasks =
       data.tasks?.map(task => {
-        const assignedMembersData = task.assignedMembers?.map(id => memberMap.get(id)).filter(Boolean) || [];
-        
+        // Filter and map assigned members, ensuring we have valid member objects
+        const assignedMembersData = (task.assignedMembers || [])
+          .map(id => memberMap.get(id))
+          .filter(Boolean)
+          .map(member => ({
+            ...member!,
+            id: String(member!.id), // Ensure ID is a string
+          }));
+
         // Extraire toutes les équipes des membres assignés
         const involvedTeamIds = new Set<string>();
         assignedMembersData.forEach(member => {
           if (member?.teams) {
-            member.teams.forEach(teamId => involvedTeamIds.add(teamId));
+            member.teams.forEach(teamId => {
+              if (teamId && typeof teamId === 'string') {
+                involvedTeamIds.add(teamId);
+              }
+            });
           }
         });
-        
+
         // Ajouter les équipes de la task si elles existent
         if (task.teams && task.teams.length > 0) {
-          task.teams.forEach(teamId => involvedTeamIds.add(teamId));
+          task.teams.forEach(teamId => {
+            if (teamId && typeof teamId === 'string') {
+              involvedTeamIds.add(teamId);
+            }
+          });
         }
-        
+
         // Récupérer les données des équipes impliquées
         const involvedTeamsData = Array.from(involvedTeamIds)
           .map(teamId => teamMap.get(teamId))
-          .filter(Boolean);
+          .filter(Boolean)
+          .map(team => ({
+            ...team!,
+            id: String(team!.id), // Ensure ID is a string
+          }));
 
         // Obtenir le clientId depuis le projet
         const projectData = task.projectId ? projectMap.get(task.projectId) : null;
         const clientId = projectData?.client || null;
         const clientData = clientId ? clientMap.get(clientId) : null;
-        
+
+        // Normalize team data IDs
+        const teamsData = (task.teams || [])
+          .map(teamId => teamMap.get(teamId))
+          .filter(Boolean)
+          .map(team => ({
+            ...team!,
+            id: String(team!.id), // Ensure ID is a string
+          }));
+
         return {
           ...task,
-          clientId, // Ajouter l'ID du client pour les couleurs
+          clientId: clientId ? String(clientId) : null, // Ensure ID is a string
           assignedMembersData,
-          projectData,
-          clientData,
-          teamsData: task.teams ? task.teams.map(teamId => teamMap.get(teamId)).filter(Boolean) : [], // Added null check for teams
+          projectData: projectData ? {
+            ...projectData,
+            id: String(projectData.id),
+          } : null,
+          clientData: clientData ? {
+            ...clientData,
+            id: String(clientData.id),
+          } : null,
+          teamsData,
           involvedTeamIds: Array.from(involvedTeamIds),
           involvedTeamsData
         };

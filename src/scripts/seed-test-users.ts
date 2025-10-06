@@ -10,7 +10,15 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 /**
  * Test users configuration
  */
-const TEST_USERS = [
+const TEST_USERS: Array<{
+  email: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+  role: UserRole;
+  description: string;
+  memberId?: string;
+}> = [
   {
     email: 'admin@matter.com',
     firstName: 'Admin',
@@ -85,7 +93,9 @@ async function seedTestUsers() {
       });
 
       await newUser.save();
-      logger.info(`✅ Created user: ${userData.firstName} ${userData.lastName} - ${userData.email} (${userData.description})`);
+      logger.info(
+        `✅ Created user: ${userData.firstName} ${userData.lastName} - ${userData.email} (${userData.description})`
+      );
       createdCount++;
     }
 
@@ -98,7 +108,9 @@ async function seedTestUsers() {
       logger.info('═══════════════════════════════════════');
       logger.info('Test credentials:');
       TEST_USERS.forEach(user => {
-        logger.info(`👤 ${user.firstName} ${user.lastName} | 📧 ${user.email} | 🔑 ${user.password} | 🛡️ ${user.role}`);
+        logger.info(
+          `👤 ${user.firstName} ${user.lastName} | 📧 ${user.email} | 🔑 ${user.password} | 🛡️ ${user.role}`
+        );
       });
     }
 
