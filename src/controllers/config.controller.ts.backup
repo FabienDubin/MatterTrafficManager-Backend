@@ -52,42 +52,31 @@ export class ConfigController {
   /**
    * Get a single config value
    * GET /api/config/:key
-   * Note: Calendar configs are accessible to all authenticated users, others require admin role
    */
   async getConfig(req: Request, res: Response) {
     try {
       const { key } = req.params;
-      const userRole = (req as any).user?.role;
-
-      // Get the config to check its category
-      const config = await ConfigModel.findOne({ key });
-
-      if (!config) {
+      
+      const value = await ConfigModel.getValue(key as string);
+      
+      if (value === null) {
         return res.status(404).json({
           success: false,
           error: `Configuration ${key} not found`
         });
       }
-
-      // Check permissions: calendar category is public (authenticated), others require admin
-      if (config.category !== 'calendar' && userRole !== 'admin') {
-        return res.status(403).json({
-          success: false,
-          error: 'Admin access required for this configuration'
-        });
-      }
-
+      
       return res.status(200).json({
         success: true,
         data: {
           key,
-          value: config.value
+          value
         }
       });
-
+      
     } catch (error) {
       logger.error('Error fetching config:', error);
-
+      
       return res.status(500).json({
         success: false,
         error: 'Failed to fetch configuration'

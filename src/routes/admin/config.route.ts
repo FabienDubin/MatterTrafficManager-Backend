@@ -122,9 +122,39 @@ router.put('/teams-display', authenticate, configController.updateTeamsDisplayCo
 
 /**
  * @swagger
+ * /api/v1/config/calendar:
+ *   get:
+ *     summary: Get calendar configuration (accessible to all authenticated users)
+ *     description: Retrieve all calendar-related configurations without admin privileges
+ *     tags: [Config]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Calendar configuration retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   additionalProperties: true
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/calendar', authenticate, configController.getConfigs);
+
+/**
+ * @swagger
  * /api/v1/config/{key}:
  *   get:
- *     summary: Get a single configuration value
+ *     summary: Get a single configuration value (read-only for calendar configs, admin-only for others)
  *     tags: [Config]
  *     security:
  *       - bearerAuth: []
@@ -140,12 +170,14 @@ router.put('/teams-display', authenticate, configController.updateTeamsDisplayCo
  *         description: Configuration retrieved successfully
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin required for non-calendar configs
  *       404:
  *         description: Configuration not found
  *       500:
  *         description: Internal server error
  */
-router.get('/:key', authenticate, requireAdmin, configController.getConfig);
+router.get('/:key', authenticate, configController.getConfig);
 
 /**
  * @swagger
