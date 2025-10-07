@@ -188,6 +188,7 @@ export function notionPageToTask(page: any): NotionTask {
     teams: extractRollupRelationIds(props[TASK_PROPERTY_IDS.team]), // Changed to use rollup extractor for teams array
     isAllDay, // Ajout du flag isAllDay
     shouldSplitDaily, // Ajout du flag shouldSplitDaily pour différencier les types spéciaux
+    notionUrl: page.url || null, // URL de la page Notion
     createdAt: new Date(page.created_time),
     updatedAt: new Date(page.last_edited_time),
   };

@@ -19,6 +19,7 @@ export interface NotionTask {
   teams: string[]; // Changed from team: string | null to support multiple teams from rollup
   isAllDay?: boolean; // Flag pour indiquer si c'est une tâche journée entière
   shouldSplitDaily?: boolean; // Flag pour indiquer si une tâche multi-jours doit être splittée en badges quotidiens
+  notionUrl?: string | null; // URL de la page Notion
   createdAt: Date;
   updatedAt: Date;
 }
