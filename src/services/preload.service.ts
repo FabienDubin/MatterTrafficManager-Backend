@@ -107,16 +107,33 @@ class PreloadService {
 
   /**
    * Preload data on application startup
+   * Matches frontend Phase 0 loading strategy (3 phases) to ensure cache hits
    */
   async preloadOnStartup(): Promise<void> {
     logger.info('Starting application cache warmup...');
     const startTime = performance.now();
 
     try {
-      // High priority preloads
+      const now = new Date();
+
+      // Phase 1: Core period (±7 days) - matches frontend Phase 1
+      const phase1Start = addDays(now, -7);
+      const phase1End = addDays(now, 7);
+
+      // Phase 2a: Past data (-30 to -7 days) - matches frontend Phase 2a
+      const phase2aStart = addDays(now, -30);
+      const phase2aEnd = addDays(now, -7);
+
+      // Phase 2b: Future data (+7 to +60 days) - matches frontend Phase 2b
+      const phase2bStart = addDays(now, 7);
+      const phase2bEnd = addDays(now, 60);
+
+      // High priority preloads - Load all 3 phases in parallel
       await Promise.all([
-        // Current month tasks
-        notionService.getTasksForCalendarView(startOfMonth(new Date()), endOfMonth(new Date())),
+        // Calendar periods - exactly matching frontend requests
+        notionService.getTasksForCalendarView(phase1Start, phase1End),
+        notionService.getTasksForCalendarView(phase2aStart, phase2aEnd),
+        notionService.getTasksForCalendarView(phase2bStart, phase2bEnd),
         // All users and teams (frequently accessed)
         notionService.getAllMembers(),
         notionService.getAllTeams(),
@@ -128,7 +145,7 @@ class PreloadService {
       );
 
       const duration = performance.now() - startTime;
-      logger.info(`Startup preload completed in ${duration.toFixed(2)}ms`);
+      logger.info(`✅ Startup preload completed in ${duration.toFixed(2)}ms (cached ±7d, -30d to -7d, +7d to +60d)`);
     } catch (error) {
       logger.error('Startup preload error:', error);
     }
