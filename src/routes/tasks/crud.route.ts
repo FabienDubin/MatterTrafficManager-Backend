@@ -4,7 +4,7 @@ import { taskCreateController } from "../../controllers/tasks/task-create.contro
 import { taskUpdateController } from "../../controllers/tasks/task-update.controller";
 import { taskDeleteController } from "../../controllers/tasks/task-delete.controller";
 import { taskConflictController } from "../../controllers/tasks/task-conflict.controller";
-import { authenticate } from "../../middleware/auth.middleware";
+import { authenticate, requireManagerOrAbove } from "../../middleware/auth.middleware";
 
 const router = Router();
 
@@ -167,6 +167,7 @@ router.get(
 router.post(
   "/",
   authenticate,
+  requireManagerOrAbove,
   taskCreateController.createTask
 );
 
@@ -271,6 +272,7 @@ router.post(
 router.put(
   "/:id",
   authenticate,
+  requireManagerOrAbove,
   taskUpdateController.updateTask
 );
 
@@ -325,6 +327,7 @@ router.put(
 router.delete(
   "/:id",
   authenticate,
+  requireManagerOrAbove,
   taskDeleteController.deleteTask
 );
 
