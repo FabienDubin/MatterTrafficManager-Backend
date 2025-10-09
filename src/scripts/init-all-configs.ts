@@ -206,6 +206,15 @@ const ALL_CONFIGS = [
     defaultValue: true,
     isEditable: true,
   },
+  {
+    key: 'SHOW_HOLIDAYS',
+    value: true,
+    description: 'Afficher les jours fériés français dans le calendrier',
+    category: 'calendar',
+    dataType: 'boolean',
+    defaultValue: true,
+    isEditable: true,
+  },
 ];
 
 async function initConfigs() {
