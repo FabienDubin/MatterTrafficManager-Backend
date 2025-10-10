@@ -349,6 +349,72 @@ export class ConfigController {
       });
     }
   }
+
+
+  /**
+   * Get task status colors configuration
+   * GET /api/v1/config/task-status-colors
+   */
+  async getTaskStatusColors(req: Request, res: Response) {
+    try {
+      // Default colors for task statuses
+      const defaultColors = {
+        not_started: '#6b7280', // Gris slate-500
+        in_progress: '#f59e0b', // Orange amber-500
+        completed: '#10b981'   // Vert emerald-500
+      };
+      
+      const colors = await ConfigModel.getValue('TASK_STATUS_COLORS') || defaultColors;
+      
+      return res.status(200).json({
+        success: true,
+        data: colors
+      });
+    } catch (error) {
+      logger.error('Error fetching task status colors:', error);
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch task status colors'
+      });
+    }
+  }
+
+  /**
+   * Update task status colors configuration
+   * PUT /api/v1/config/task-status-colors
+   */
+  async updateTaskStatusColors(req: Request, res: Response) {
+    try {
+      const colors = req.body;
+      const userId = (req as any).userId;
+
+      // Validation: should have not_started, in_progress, completed keys
+      if (!colors || typeof colors !== 'object' || 
+          !colors.not_started || !colors.in_progress || !colors.completed) {
+        return res.status(400).json({
+          success: false,
+          error: 'Colors must have not_started, in_progress, and completed hex colors'
+        });
+      }
+
+      await ConfigModel.setValue('TASK_STATUS_COLORS', colors, userId);
+      
+      logger.info(`Updated task status colors config by user ${userId || 'unknown'}`);
+
+      return res.status(200).json({
+        success: true,
+        data: colors
+      });
+    } catch (error) {
+      logger.error('Error updating task status colors:', error);
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to update task status colors'
+      });
+    }
+  }
 }
 
 export default new ConfigController();
