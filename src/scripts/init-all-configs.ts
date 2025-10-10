@@ -215,6 +215,23 @@ const ALL_CONFIGS = [
     defaultValue: true,
     isEditable: true,
   },
+  {
+    key: 'TASK_STATUS_COLORS',
+    value: {
+      not_started: '#6b7280',
+      in_progress: '#f59e0b',
+      completed: '#10b981'
+    },
+    description: 'Couleurs d\'affichage des tâches par statut',
+    category: 'calendar',
+    dataType: 'json',
+    defaultValue: {
+      not_started: '#6b7280',
+      in_progress: '#f59e0b',
+      completed: '#10b981'
+    },
+    isEditable: true,
+  },
 ];
 
 async function initConfigs() {
