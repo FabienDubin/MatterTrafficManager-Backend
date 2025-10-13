@@ -216,6 +216,15 @@ const ALL_CONFIGS = [
     isEditable: true,
   },
   {
+    key: 'DAILY_WORKING_HOURS',
+    value: 8,
+    description: 'Nombre d\'heures quotidiennes de travail utilisé pour calculer les taux d\'occupation',
+    category: 'calendar',
+    dataType: 'number',
+    defaultValue: 8,
+    isEditable: true,
+  },
+  {
     key: 'TASK_STATUS_COLORS',
     value: {
       not_started: '#6b7280',
