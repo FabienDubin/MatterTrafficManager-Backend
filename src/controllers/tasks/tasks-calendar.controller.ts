@@ -13,6 +13,8 @@ export class TasksCalendarController {
    * GET /api/tasks/calendar?startDate=2025-01-01&endDate=2025-01-31
    */
   getCalendarTasks = async (req: Request, res: Response) => {
+    const startTime = performance.now();
+    
     try {
       // Validate query params
       const validation = calendarQuerySchema.safeParse(req.query);
@@ -26,7 +28,6 @@ export class TasksCalendarController {
       }
 
       const { startDate, endDate } = validation.data;
-      
       // Check date range is valid
       const start = parseISO(startDate);
       const end = parseISO(endDate);
@@ -43,19 +44,29 @@ export class TasksCalendarController {
       const startDateObj = parseISO(startDate);
       const endDateObj = parseISO(endDate);
       
+      const step1Start = performance.now();
       const tasks = await notionService.getTasksForCalendarView(
         startDateObj,
-        endDateObj
+        endDateObj,
+        { 
+          originalStartDate: startDate,  // Pass original strings to avoid timezone issues
+          originalEndDate: endDate 
+        }
       );
+      console.log(`📅 [CALENDAR] STEP 1: Got ${tasks.length} tasks in ${(performance.now() - step1Start).toFixed(0)}ms`);
 
       // Enrichir les données avec le batch resolver
+      const step2Start = performance.now();
       const { resolvedTasks } = await notionService.batchResolveRelations({
         tasks
       });
+      console.log(`📅 [CALENDAR] STEP 2: Batch resolved in ${(performance.now() - step2Start).toFixed(0)}ms`);
 
       // Load conflicts from MongoDB for all tasks
+      const step3Start = performance.now();
       const taskIds = resolvedTasks.map((task: any) => task.id);
       const conflictsMap = await tasksConflictService.getConflictsForTasks(taskIds);
+      console.log(`📅 [CALENDAR] STEP 3: Got conflicts in ${(performance.now() - step3Start).toFixed(0)}ms`);
       
       // Attach conflicts to tasks
       const tasksWithConflicts = resolvedTasks.map((task: any) => ({
@@ -63,7 +74,9 @@ export class TasksCalendarController {
         conflicts: conflictsMap.get(task.id) || undefined
       }));
 
-      // Format response avec les données enrichies
+      // Format response avec les données enrichies  
+      const totalTime = performance.now() - startTime;
+      
       return res.status(200).json({
         success: true,
         data: {
@@ -77,7 +90,8 @@ export class TasksCalendarController {
         meta: {
           count: tasksWithConflicts.length,
           cached: true,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          performance: `${totalTime.toFixed(0)}ms`
         }
       });
       

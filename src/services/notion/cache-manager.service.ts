@@ -46,9 +46,12 @@ export class CacheManagerService extends NotionBaseService {
 
     try {
       // Try to get from cache first
+      const cacheStart = performance.now();
       const cachedData = await redisService.get<T>(cacheKey);
+      const cacheDuration = performance.now() - cacheStart;
       
       if (cachedData) {
+        console.log(`🎯 [CACHE-HIT] ${new Date().toISOString()} Found in cache: ${cacheKey} (${cacheDuration.toFixed(0)}ms)`);
         logger.debug(`Cache HIT for ${cacheKey}`);
         
         // Optionally validate cached data is still fresh (async, non-blocking)
@@ -60,11 +63,15 @@ export class CacheManagerService extends NotionBaseService {
       }
 
       // Cache miss - fetch from Notion
+      console.log(`❌ [CACHE-MISS] ${new Date().toISOString()} Not in cache: ${cacheKey} - fetching from Notion`);
       logger.debug(`Cache MISS for ${cacheKey}, fetching from Notion`);
       const freshData = await fetchFn();
       
       // Store in cache for next time
+      const setCacheStart = performance.now();
       await redisService.set(cacheKey, freshData, entityType);
+      const setCacheDuration = performance.now() - setCacheStart;
+      console.log(`💾 [CACHE-SET] ${new Date().toISOString()} Stored in cache: ${cacheKey} (${setCacheDuration.toFixed(0)}ms)`);
       
       return freshData;
       

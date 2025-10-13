@@ -18,17 +18,20 @@ export class CalendarService extends NotionBaseService {
   async getTasksForCalendarView(
     startDate: Date,
     endDate: Date,
-    options: { forceRefresh?: boolean; skipCache?: boolean } = {}
+    options: { forceRefresh?: boolean; skipCache?: boolean; originalStartDate?: string; originalEndDate?: string } = {}
   ): Promise<NotionTask[]> {
-    // Create cache key based on date range (rounded to day for better cache hits)
-    const startKey = startDate.toISOString().split('T')[0];
-    const endKey = endDate.toISOString().split('T')[0];
+    // Use original string dates for cache key to avoid timezone issues
+    // If not provided, fall back to ISO conversion
+    const startKey = options.originalStartDate || startDate.toISOString().split('T')[0];
+    const endKey = options.originalEndDate || endDate.toISOString().split('T')[0];
     const cacheKey = `tasks:calendar:start=${startKey}:end=${endKey}`;
+
 
     return await cacheManagerService.getCachedOrFetch<NotionTask[]>(
       cacheKey,
       'tasks',
       async () => {
+        const notionStart = performance.now();
         // Paginer pour récupérer TOUTES les tâches
         let allResults: any[] = [];
         let hasMore = true;
@@ -107,11 +110,14 @@ export class CalendarService extends NotionBaseService {
           return taskEnd >= periodStart && taskStart <= periodEnd;
         });
 
+        const notionEnd = performance.now();
+        const notionDuration = notionEnd - notionStart;
         logger.debug('Calendar tasks filtered', {
           totalTasks: allTasks.length,
           filteredTasks: tasks.length,
           startDate: startKey,
           endDate: endKey,
+          notionDuration: `${notionDuration.toFixed(0)}ms`
         });
 
         return tasks;

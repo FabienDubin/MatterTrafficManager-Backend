@@ -70,8 +70,15 @@ class PreloadService {
 
       // Preload based on entity types
       if (strategy.entities.includes('tasks') && strategy.dateRange) {
+        // Use consistent string dates for cache keys
+        const startStr = strategy.dateRange.start.toISOString().split('T')[0];
+        const endStr = strategy.dateRange.end.toISOString().split('T')[0];
+        
         promises.push(
-          notionService.getTasksForCalendarView(strategy.dateRange.start, strategy.dateRange.end)
+          notionService.getTasksForCalendarView(strategy.dateRange.start, strategy.dateRange.end, {
+            originalStartDate: startStr,
+            originalEndDate: endStr
+          })
         );
       }
 
@@ -119,21 +126,36 @@ class PreloadService {
       // Phase 1: Core period (±7 days) - matches frontend Phase 1
       const phase1Start = addDays(now, -7);
       const phase1End = addDays(now, 7);
+      const phase1StartStr = phase1Start.toISOString().split('T')[0];
+      const phase1EndStr = phase1End.toISOString().split('T')[0];
 
       // Phase 2a: Past data (-30 to -7 days) - matches frontend Phase 2a
       const phase2aStart = addDays(now, -30);
       const phase2aEnd = addDays(now, -7);
+      const phase2aStartStr = phase2aStart.toISOString().split('T')[0];
+      const phase2aEndStr = phase2aEnd.toISOString().split('T')[0];
 
       // Phase 2b: Future data (+7 to +60 days) - matches frontend Phase 2b
       const phase2bStart = addDays(now, 7);
       const phase2bEnd = addDays(now, 60);
+      const phase2bStartStr = phase2bStart.toISOString().split('T')[0];
+      const phase2bEndStr = phase2bEnd.toISOString().split('T')[0];
 
-      // High priority preloads - Load all 3 phases in parallel
+      // High priority preloads - Load all 3 phases in parallel with consistent cache keys
       await Promise.all([
-        // Calendar periods - exactly matching frontend requests
-        notionService.getTasksForCalendarView(phase1Start, phase1End),
-        notionService.getTasksForCalendarView(phase2aStart, phase2aEnd),
-        notionService.getTasksForCalendarView(phase2bStart, phase2bEnd),
+        // Calendar periods - using string dates for consistent cache keys
+        notionService.getTasksForCalendarView(phase1Start, phase1End, { 
+          originalStartDate: phase1StartStr, 
+          originalEndDate: phase1EndStr 
+        }),
+        notionService.getTasksForCalendarView(phase2aStart, phase2aEnd, { 
+          originalStartDate: phase2aStartStr, 
+          originalEndDate: phase2aEndStr 
+        }),
+        notionService.getTasksForCalendarView(phase2bStart, phase2bEnd, { 
+          originalStartDate: phase2bStartStr, 
+          originalEndDate: phase2bEndStr 
+        }),
         // All users and teams (frequently accessed)
         notionService.getAllMembers(),
         notionService.getAllTeams(),
@@ -163,9 +185,14 @@ class PreloadService {
       // Refresh current week's tasks
       const weekStart = startOfWeek(new Date());
       const weekEnd = endOfWeek(new Date());
+      const weekStartStr = weekStart.toISOString().split('T')[0];
+      const weekEndStr = weekEnd.toISOString().split('T')[0];
 
       await Promise.all([
-        notionService.getTasksForCalendarView(weekStart, weekEnd),
+        notionService.getTasksForCalendarView(weekStart, weekEnd, {
+          originalStartDate: weekStartStr,
+          originalEndDate: weekEndStr
+        }),
         notionService.getAllMembers(), // Members change less frequently
       ]);
 
