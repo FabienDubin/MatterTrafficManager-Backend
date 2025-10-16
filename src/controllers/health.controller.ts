@@ -18,11 +18,11 @@ export class HealthController {
 
       // Critical services: MongoDB and Redis must be healthy
       const criticalServicesHealthy =
-        mongoStatus.status === 'healthy' &&
-        redisStatus.status === 'healthy';
+        mongoStatus?.status === 'healthy' &&
+        (redisStatus?.status === 'healthy' || redisStatus?.status === 'disconnected');
 
       // Webhooks are non-critical: stale/waiting is acceptable (polling fallback exists)
-      const webhooksAcceptable = ['healthy', 'waiting', 'stale'].includes(webhookStatus.status);
+      const webhooksAcceptable = ['healthy', 'waiting', 'stale'].includes(webhookStatus?.status || 'error');
 
       const overallStatus = criticalServicesHealthy && webhooksAcceptable ? 'healthy' : 'degraded';
       const httpStatus = criticalServicesHealthy ? 200 : 503;
@@ -33,10 +33,10 @@ export class HealthController {
         uptime: process.uptime(),
         version: packageJson.version || '1.0.0',
         services: {
-          mongodb: mongoStatus,
-          redis: redisStatus,
+          mongodb: mongoStatus || { status: 'error', message: 'Failed to check MongoDB' },
+          redis: redisStatus || { status: 'error', message: 'Failed to check Redis' },
           webhooks: {
-            ...webhookStatus,
+            ...(webhookStatus || { status: 'error' }),
             critical: false, // Webhooks are optional, polling fallback available
           },
         },
@@ -81,7 +81,15 @@ export class HealthController {
    * Check Redis connection
    */
   private async checkRedis(): Promise<{ status: string; message?: string }> {
-    return await redisService.healthCheck();
+    try {
+      const result = await redisService.healthCheck();
+      return result || { status: 'error', message: 'Redis healthCheck returned undefined' };
+    } catch (error) {
+      return {
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Redis check failed',
+      };
+    }
   }
 
   /**

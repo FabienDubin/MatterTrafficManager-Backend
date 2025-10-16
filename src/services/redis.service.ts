@@ -2,6 +2,17 @@ import { Redis } from '@upstash/redis';
 import logger from '../config/logger.config';
 import { cacheMetricsService } from './cache-metrics.service';
 
+// Interface pour permettre l'injection de mocks dans les tests
+interface IRedisClient {
+  get(key: string): Promise<any>;
+  setex(key: string, ttl: number, value: string): Promise<any>;
+  del(...keys: string[]): Promise<number>;
+  scan(cursor: number, options?: any): Promise<[string, string[]]>;
+  ping(): Promise<string>;
+  flushdb(): Promise<any>;
+  ttl(key: string): Promise<number>;
+}
+
 interface RedisConfig {
   url: string;
   token: string;
@@ -15,11 +26,11 @@ interface RedisConfig {
 }
 
 export class RedisService {
-  private redis: Redis;
+  private redis: IRedisClient;
   private config: RedisConfig;
   private isConnected: boolean = false;
 
-  constructor() {
+  constructor(redisClient?: IRedisClient) {
     this.config = {
       url: process.env.UPSTASH_REDIS_REST_URL || '',
       token: process.env.UPSTASH_REDIS_REST_TOKEN || '',
@@ -32,14 +43,22 @@ export class RedisService {
       },
     };
 
-    if (!this.config.url || !this.config.token) {
+    if (redisClient) {
+      // Mode test avec client mock
+      this.redis = redisClient;
+      this.isConnected = true;
+      logger.debug('Redis service initialized with mock client for testing');
+    } else if (!this.config.url || !this.config.token) {
+      // Mode dégradé sans Redis
       logger.warn('Redis configuration missing, cache will be disabled');
-      this.redis = {} as Redis;
+      this.redis = {} as IRedisClient;
+      this.isConnected = false;
     } else {
+      // Mode production avec Upstash
       this.redis = new Redis({
         url: this.config.url,
         token: this.config.token,
-      });
+      }) as IRedisClient;
       this.isConnected = true;
       logger.info('Redis service initialized with Upstash');
     }
@@ -64,6 +83,16 @@ export class RedisService {
         const responseTime = performance.now() - startTime;
         logger.debug(`Cache hit for key: ${key} (${responseTime.toFixed(2)}ms)`);
         cacheMetricsService.recordHit(entityType, responseTime);
+        
+        // Parse JSON si c'est une string, sinon retourner directement
+        if (typeof cached === 'string') {
+          try {
+            return JSON.parse(cached) as T;
+          } catch (error) {
+            logger.warn(`Failed to parse cached data for key ${key}:`, error);
+            return cached as T;
+          }
+        }
         return cached as T;
       }
 
@@ -360,5 +389,6 @@ export class RedisService {
   }
 }
 
-// Export singleton instance
+// Export singleton instance ET factory pour les tests
 export const redisService = new RedisService();
+export const createRedisService = (redisClient?: IRedisClient) => new RedisService(redisClient);
